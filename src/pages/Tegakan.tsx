@@ -10,6 +10,29 @@ import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export const sumJml = (rows: TegakanRow[], status?: string) => rows.reduce((a, r) => a + (!status || r.status === status ? r.jml : 0), 0);
 
+/** ULTG per penghantar sesuai database: ULTG yang paling banyak tercatat
+    (jumlah record) untuk penghantar itu. Satu penghantar bisa melintasi dua
+    wilayah — mis. TRS 275KV LAHAT-LBGAU tercatat di ULTG PEKALONGAN (3.595
+    record) dan ULTG LAHAT (2.037 record) — jadi agregasi per penghantar
+    tidak boleh asal ambil baris pertama/terakhir: keduanya harus memakai
+    ULTG mayoritas yang sama supaya lembar export dan tabel dashboard tidak
+    berbeda. */
+function majorityUltg(rows: TegakanRow[]): Map<string, string> {
+  const counts = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    const m = counts.get(r.pht) ?? new Map<string, number>();
+    m.set(r.ultg, (m.get(r.ultg) ?? 0) + 1);
+    counts.set(r.pht, m);
+  }
+  const out = new Map<string, string>();
+  for (const [pht, m] of counts) {
+    let best = '', bestN = -1;
+    for (const [u, n] of m) if (n > bestN) { best = u; bestN = n; }
+    out.set(pht, best);
+  }
+  return out;
+}
+
 export default function Tegakan() {
   usePageSources(['tegakan']);
   const s = useSource('tegakan');
@@ -35,9 +58,10 @@ function Body({ data }: { data: TegakanData }) {
   }, [data.rows, f]);
   const total = sumJml(rows);
   const perPht = useMemo(() => {
+    const ultgByPht = majorityUltg(rows);
     const mm = new Map<string, { ultg: string; NORMAL: number; BAHAYA_II: number; BAHAYA_I: number; KRITIS: number; total: number }>();
     for (const r of rows) {
-      const o = mm.get(r.pht) ?? { ultg: r.ultg, NORMAL: 0, BAHAYA_II: 0, BAHAYA_I: 0, KRITIS: 0, total: 0 };
+      const o = mm.get(r.pht) ?? { ultg: ultgByPht.get(r.pht) ?? r.ultg, NORMAL: 0, BAHAYA_II: 0, BAHAYA_I: 0, KRITIS: 0, total: 0 };
       o[r.status as 'NORMAL' | 'BAHAYA_II' | 'BAHAYA_I' | 'KRITIS'] += r.jml;
       o.total += r.jml;
       mm.set(r.pht, o);
@@ -95,9 +119,10 @@ function Ringkasan({ rows }: { rows: TegakanRow[] }) {
   const t = useChartTheme();
   const tipe = groupSum(rows, (r) => r.tipe, (r) => r.jml).slice(0, 10);
   const pht = useMemo(() => {
+    const ultgByPht = majorityUltg(rows);
     const m = new Map<string, Record<string, number>>();
-    for (const r of rows) { const o = m.get(r.pht) ?? { NORMAL: 0, BAHAYA_II: 0, BAHAYA_I: 0, KRITIS: 0, ultg: 0 } as any; o[r.status] += r.jml; o.__ultg = r.ultg; m.set(r.pht, o); }
-    return [...m.entries()].map(([name, v]: any) => ({ name, ultg: v.__ultg as string, NORMAL: v.NORMAL, BAHAYA_II: v.BAHAYA_II, BAHAYA_I: v.BAHAYA_I, KRITIS: v.KRITIS, total: v.NORMAL + v.BAHAYA_II + v.BAHAYA_I + v.KRITIS }));
+    for (const r of rows) { const o = m.get(r.pht) ?? { NORMAL: 0, BAHAYA_II: 0, BAHAYA_I: 0, KRITIS: 0 } as any; o[r.status] += r.jml; m.set(r.pht, o); }
+    return [...m.entries()].map(([name, v]: any) => ({ name, ultg: (ultgByPht.get(name) ?? '') as string, NORMAL: v.NORMAL, BAHAYA_II: v.BAHAYA_II, BAHAYA_I: v.BAHAYA_I, KRITIS: v.KRITIS, total: v.NORMAL + v.BAHAYA_II + v.BAHAYA_I + v.KRITIS }));
   }, [rows]);
   type P = (typeof pht)[number];
   const cols: Col<P>[] = [
