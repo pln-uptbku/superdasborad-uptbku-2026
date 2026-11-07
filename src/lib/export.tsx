@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { FileDown } from 'lucide-react';
 import { ChartThemeProvider, LIGHT_CHART_THEME } from '../components/ui';
+import { themeFor } from './ultgPdf';
 
 /**
  * Export ringkasan 1 halaman (A4 portrait) — BUKAN screenshot halaman panjang.
@@ -11,6 +12,10 @@ import { ChartThemeProvider, LIGHT_CHART_THEME } from '../components/ui';
  * dashboard) dan di-capture html2canvas -> PNG, atau ditempel ke jsPDF
  * A4 portrait sebagai 1 halaman penuh. Teks tetap teks di DOM sampai
  * capture, jadi tidak ada pengecilan halaman panjang yang tidak terbaca.
+ *
+ * Gaya visual lembar mengikuti model poster PDF ULTG (ultgPdf.ts): header
+ * art tematik bulanan + logo Danantara/UPT/PLN + badge tema, footer pita
+ * merah + slogan — isi tetap ringkasan 1 halaman, bukan poster multi-halaman.
  *
  * Cara pakai di halaman: render <ExportSheet meta={...}>...</ExportSheet>
  * (cukup 1 per halaman, di dalam JSX halaman). TopBar menampilkan
@@ -127,6 +132,12 @@ export function ExportSheet({ meta, children }: { meta: ExportMeta; children: Re
   const ref = useRef<HTMLDivElement>(null);
   const preview = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('exportPreview');
+  // Tema poster bulanan (badge + slogan) sama seperti PDF poster ULTG
+  // (ultgPdf.themeFor): badge mengikuti tanggal HARI INI, bukan bulan data.
+  const th = themeFor(new Date());
+  // Art header /pdf/hdr-<bulan>.jpg hanya ada untuk Okt–Des; bila tidak ada,
+  // <img> gagal load -> onError sembunyikan, latar navy yang tampil.
+  const [artOk, setArtOk] = useState(true);
   // Daftarkan node+meta ke provider; hanya ulang bila identitasnya berubah
   // (tanpa dep array, cleanup register(null) + effect register(node) akan
   // berputar tanpa henti dan membuat tombol Export berkedip enabled/disabled).
@@ -145,30 +156,55 @@ export function ExportSheet({ meta, children }: { meta: ExportMeta; children: Re
         : { position: 'fixed', left: -12000, top: 0, width: EXPORT_W, height: EXPORT_H, overflow: 'hidden', background: '#ffffff' }}
     >
       <ChartThemeProvider theme={LIGHT_CHART_THEME}>
-        <div style={{ padding: '24px 30px 18px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: SHEET_FONT, color: '#0B2340' }}>
-          <div style={{ background: '#0B2340', borderRadius: 10, padding: '11px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ color: '#FFC940', fontSize: 10, fontWeight: 800, letterSpacing: 2 }}>PT PLN (PERSERO)</div>
-              <div style={{ color: '#ffffff', fontSize: 19, fontWeight: 800, lineHeight: 1.2 }}>UPT BENGKULU</div>
-            </div>
-            <div style={{ color: '#BFE9FF', fontSize: 11, fontWeight: 700, textAlign: 'right', lineHeight: 1.5 }}>
-              KPI Command Center<br /><span style={{ color: '#7FA8C9', fontWeight: 400 }}>plnuptbengkulu.web.id</span>
+        <div style={{ padding: '18px 30px 12px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: SHEET_FONT, color: '#0B2340' }}>
+          {/* Header gaya poster: art tematik + logo Danantara/UPT/PLN + badge tema bulanan + judul halaman.
+              Tinggi 96px: Kinerja (35 baris + catatan) hanya muat bila chrome sehemat ini. */}
+          <div style={{ position: 'relative', height: 96, borderRadius: 10, overflow: 'hidden', background: '#0B2340', flexShrink: 0 }}>
+            {artOk && (
+              <img src={`/pdf/hdr-${th.month}.jpg`} alt="" onError={() => setArtOk(false)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%' }} />
+            )}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,35,64,0.15) 0%, rgba(11,35,64,0) 40%, rgba(11,35,64,0.55) 100%)' }} />
+            <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '7px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <span style={{ background: '#ffffff', borderRadius: 6, padding: '3px 6px', display: 'inline-flex' }}>
+                  <img src="/pdf/danantara.png" alt="Danantara" style={{ width: 84, height: 21, display: 'block' }} />
+                </span>
+                <span style={{ background: '#ffffff', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
+                  <img src="/pdf/upt.png" alt="UPT Bengkulu" style={{ width: 32, height: 40, display: 'block' }} />
+                </span>
+                <span style={{ background: '#ffffff', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
+                  <img src="/pdf/pln.png" alt="PLN" style={{ width: 30, height: 45, display: 'block' }} />
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+                <span style={{ background: '#CE1126', borderRadius: 6, padding: '4px 10px', lineHeight: 1.25, flexShrink: 0 }}>
+                  <span style={{ display: 'block', color: '#ffffff', fontSize: 10.5, fontWeight: 800 }}>{th.badge.toUpperCase()}</span>
+                  <span style={{ display: 'block', color: '#FFC940', fontSize: 7, fontWeight: 700 }}>{th.badgeSub.toUpperCase()}</span>
+                </span>
+                <span style={{ color: '#ffffff', fontSize: 19, fontWeight: 800, textAlign: 'right', lineHeight: 1.15, textShadow: '1px 0 0 #0B2340, -1px 0 0 #0B2340, 0 1px 0 #0B2340, 0 -1px 0 #0B2340, 1px 1px 0 #0B2340, -1px -1px 0 #0B2340, 1px -1px 0 #0B2340, -1px 1px 0 #0B2340' }}>{meta.title}</span>
+              </div>
             </div>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 21, fontWeight: 800, color: '#0B2340', lineHeight: 1.2 }}>{meta.title}</div>
-            <div style={{ fontSize: 11, color: '#5B6B80', marginTop: 3 }}>
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 11, color: '#5B6B80' }}>
               {meta.subtitle}
               {meta.updatedAt ? <> · Update data: {meta.updatedAt.toLocaleString('id-ID')}</> : ''}
             </div>
-            <div style={{ height: 3, background: '#FFC940', borderRadius: 2, marginTop: 8, width: 120 }} />
+            <div style={{ height: 3, background: '#FFC940', borderRadius: 2, marginTop: 4, width: 120 }} />
           </div>
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
             {children}
           </div>
-          <div style={{ borderTop: '1px solid #D7E2EE', paddingTop: 8, marginTop: 12, fontSize: 9, color: '#7A8AA0', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-            <span>Sumber data: Google Sheets (live) · Ringkasan 1 halaman — detail lengkap lihat dashboard</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Diekspor {now.toLocaleString('id-ID')} · 1 dari 1</span>
+          {/* Footer gaya poster: pita merah + slogan + identitas. */}
+          <div style={{ background: '#CE1126', borderRadius: 8, padding: '5px 12px', marginTop: 10, display: 'flex', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+            <div style={{ fontSize: 9, color: '#ffffff', lineHeight: 1.4, maxWidth: 380 }}>
+              <b>CATATAN:</b> Sumber data: Google Sheets (live) · Ringkasan 1 halaman — detail lengkap lihat dashboard
+            </div>
+            <div style={{ textAlign: 'right', color: '#ffffff', flexShrink: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, fontStyle: 'italic' }}>{th.slogan}</div>
+              <div style={{ fontSize: 8.5, marginTop: 2, opacity: 0.95 }}>PT PLN (Persero) UPT Bengkulu · plnuptbengkulu.web.id · Diekspor {now.toLocaleString('id-ID')} · 1 dari 1</div>
+            </div>
           </div>
         </div>
       </ChartThemeProvider>
