@@ -7,6 +7,7 @@ import { fmtAuto, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, Gate, PageHeader, Select, SortableTable, StatCard, useChartTheme } from '../components/ui';
 import { NkoBobotNilaiChart, SimplePie, pctColor } from '../components/charts';
 import AnalisaNko from '../components/AnalisaNko';
+import { ExportSheet, XKpis, XNote, XSection, XTable } from '../lib/export';
 import { useLocation } from 'react-router-dom';
 
 export function MonthChips({ months, value, onChange }: { months: NkoMonth[]; value: number; onChange: (m: number) => void }) {
@@ -61,12 +62,12 @@ export default function Kinerja() {
   const { refresh } = useData();
   return (
     <Gate sources={[nko]} onRetry={() => refresh(['nko'])} text="Memuat Kinerja NKO…">
-      {() => <KinerjaBody months={nko.data!.months} />}
+      {() => <KinerjaBody months={nko.data!.months} updatedAt={nko.updatedAt ?? null} />}
     </Gate>
   );
 }
 
-function KinerjaBody({ months }: { months: NkoMonth[] }) {
+function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Date | null }) {
   const latest = months[months.length - 1];
   const loc = useLocation();
   const askedMonth = (loc.state as { month?: number } | null)?.month;
@@ -203,6 +204,33 @@ function KinerjaBody({ months }: { months: NkoMonth[] }) {
           <SortableTable rows={projection} cols={projCols} maxHeight={560} />
         </Card>
       )}
+
+      {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      <ExportSheet meta={{ title: 'Dashboard Kinerja NKO', subtitle: `Kinerja Operasional UPT Bengkulu — ${m.label} (tab ${m.tab})`, fileBase: 'Kinerja_NKO', updatedAt: updatedAt ?? null }}>
+        <XKpis items={[
+          { label: 'Total NKO (cap 100%)', value: fmtNum(m.total100, 2), color: C.blue },
+          { label: 'Total NKO (cap 110%)', value: fmtNum(m.total110 != null ? Math.min(110, m.total110) : null, 2), sub: (m.total110 ?? 0) >= 100 ? 'Di atas target' : 'Di bawah target', color: pctColor(m.total110) },
+          { label: 'BAIK', value: fmtNum(counts.BAIK), sub: 'indikator', color: C.ok },
+          { label: 'HATI-HATI', value: fmtNum(counts['HATI-HATI']), sub: 'indikator', color: C.warn },
+          { label: 'MASALAH', value: fmtNum(counts.MASALAH), sub: 'indikator', color: C.crit },
+        ]} />
+        <XSection title="Bobot vs Nilai per Indikator" right="Hijau ≥100% · Kuning 95–<100% · Merah <95%" height={210}>
+          <NkoBobotNilaiChart rows={m.rows} />
+        </XSection>
+        <XTable title="Indikator — pencapaian terendah" headers={['NO', 'INDIKATOR', 'BOBOT', '% (110%)', 'NILAI 110%', 'STATUS']}
+          aligns={['left', 'left', 'right', 'right', 'right', 'left']}
+          rows={[...indicatorsOf(m)].filter((r) => !r.penalty).sort((a, b) => (a.pct110 ?? 999) - (b.pct110 ?? 999)).map((r) => [
+            r.no,
+            r.short.length > 44 ? `${r.short.slice(0, 44)}…` : r.short,
+            r.bobot,
+            r.pct110 == null ? '—' : fmtNum(r.pct110, 2),
+            fmtNum(r.nilai110, 2),
+            r.status || '—',
+          ])} />
+        {m.merah.length > 0 && (
+          <XNote>Kinerja merah: <b>{m.merah[0].indikator}</b> — {m.merah[0].penyebab} · Status: {m.merah[0].status}</XNote>
+        )}
+      </ExportSheet>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Activity, Axe, Gauge, Images, LayoutDashboard, Menu, Moon, RefreshCw, S
 import { Analytics } from '@vercel/analytics/react';
 import { DataProvider, PageSourcesProvider, useData, usePageSourceKeys } from './lib/data';
 import { LoadingScreen, ThemeProvider, UptLogo, useTheme } from './components/ui';
+import { ExportMenu, ExportProvider } from './lib/export';
 // Setiap halaman dimuat terpisah (code splitting) supaya loading awal lebih ringan.
 const Home = lazy(() => import('./pages/Home'));
 const Kinerja = lazy(() => import('./pages/Kinerja'));
@@ -93,9 +94,12 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         {last ? <>Update data: <span className="t-accent font-semibold">{last.toLocaleString('id-ID')}</span></> : 'Memuat data…'}
         {errs.length > 0 && <span className="ml-2 badge badge-crit">{errs.length} sumber gagal dimuat ulang</span>}
       </div>
-      <button className="btn btn-primary ml-auto" onClick={() => refresh(keys)} disabled={loading || !keys.length}>
-        <RefreshCw size={15} className={loading ? 'refresh-spin' : ''} /> Refresh Data
-      </button>
+      <span className="ml-auto flex items-center gap-2">
+        <ExportMenu />
+        <button className="btn btn-primary" onClick={() => refresh(keys)} disabled={loading || !keys.length}>
+          <RefreshCw size={15} className={loading ? 'refresh-spin' : ''} /> Refresh Data
+        </button>
+      </span>
     </header>
   );
 }
@@ -141,7 +145,9 @@ export default function App() {
       <DataProvider>
         <PageSourcesProvider>
           <BrowserRouter>
-            <Shell />
+            <ExportProvider>
+              <Shell />
+            </ExportProvider>
             <Analytics />
           </BrowserRouter>
         </PageSourcesProvider>

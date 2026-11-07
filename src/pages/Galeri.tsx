@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, ImageOff, X } from 'lucide-react';
 import { usePageSources } from '../lib/data';
 import { Card, LoadingScreen, PageHeader, Select } from '../components/ui';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 type Folder = { id: string; name: string };
 type Photo = { id: string; name: string; bidang: string };
@@ -52,6 +53,37 @@ export default function Galeri() {
   }, [open, shown.length]);
 
   const p = open >= 0 ? shown[open] : null;
+  /* Lembar ringkasan 1 halaman tegak (Export PDF/PNG): foto pilihan + rekap per bidang.
+     Thumbnail memakai lh3.googleusercontent.com (CORS: Access-Control-Allow-Origin: *)
+     supaya html2canvas bisa menggambarnya; thumb drive.google.com tidak dipakai di sheet. */
+  const perBidang = useMemo(() => {
+    const m = new Map<string, number>(); shown.forEach((ph) => m.set(cap(ph.bidang), (m.get(cap(ph.bidang)) || 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [shown]);
+  const sheetEl = photos ? (
+    <ExportSheet meta={{ title: 'Galeri Kegiatan UPT Bengkulu', subtitle: `Bulan ${curMonth ? monthLabel(curMonth.name) : '—'} · Bidang ${bidang}`, fileBase: `Galeri_UPT_Bengkulu_${curMonth ? curMonth.name : ''}` }}>
+      <XKpis items={[
+        { label: 'Total Foto', value: String(shown.length), sub: curMonth ? monthLabel(curMonth.name) : '', color: '#0072CE' },
+        { label: 'Bidang', value: String(perBidang.length), sub: 'terwakili', color: '#2E7D32' },
+        { label: 'Bulan', value: curMonth ? (curMonth.name.match(/^\d{4}\.(\d{2})/)?.[1] ?? '—') : '—', sub: curMonth ? monthLabel(curMonth.name) : '', color: '#F57C00' },
+      ]} />
+      <XSection title="Foto Pilihan" height={shown.slice(0, 8).length > 4 ? 330 : 215} right={shown.length > 8 ? `+${shown.length - 8} foto lainnya` : undefined}>
+        <div className="grid grid-cols-4 gap-2.5">
+          {shown.slice(0, 8).map((ph) => (
+            <div key={ph.id}>
+              <img src={`https://lh3.googleusercontent.com/d/${ph.id}=w400`} crossOrigin="anonymous" alt={title(ph.name)}
+                className="w-full rounded-lg object-cover" style={{ height: 118 }} />
+              <div className="mt-1 text-[11px] font-semibold leading-tight" style={{ color: '#0b2340' }}>{(() => { const t = title(ph.name); return t.length > 44 ? `${t.slice(0, 44)}…` : t; })()}</div>
+              <div className="text-[10px]" style={{ color: '#4b6585' }}>{cap(ph.bidang)}</div>
+            </div>
+          ))}
+        </div>
+      </XSection>
+      <XTable title="Foto per Bidang" headers={['BIDANG', 'JUMLAH']}
+        aligns={['left', 'right']}
+        rows={perBidang.map(([b, n]) => [b, String(n)])} />
+    </ExportSheet>
+  ) : null;
   return (
     <div className="space-y-5">
       <PageHeader title="Galeri Kegiatan UPT Bengkulu" subtitle="Foto otomatis dari Google Drive · Flyer Konten Publikasi UPTBKU"
@@ -97,6 +129,7 @@ export default function Galeri() {
           </>
         )}
       </Card>
+      {sheetEl}
       {p && (
         <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-4" onClick={() => setOpen(-1)}>
           <button className="absolute top-4 right-4 text-white" onClick={() => setOpen(-1)} aria-label="Tutup"><X size={30} /></button>

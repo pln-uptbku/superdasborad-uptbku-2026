@@ -3,8 +3,9 @@ import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContai
 import { KerawananData, useData, usePageSources, useSource } from '../lib/data';
 import { KerawananRow } from '../lib/parsers';
 import { fmtNum, num, num0 } from '../lib/sheets';
-import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
+import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie } from '../components/charts';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 const K = {
   petir: 'DATA GANGGUAN|PETIR', temuanPetir: 'DATA GANGGUAN|TEMUAN PETIR', hewan: 'DATA GANGGUAN|HEWAN', temuanHewan: 'DATA GANGGUAN|TEMUAN', pohon: 'DATA GANGGUAN|POHON',
@@ -56,6 +57,41 @@ function Body({ data }: { data: KerawananData }) {
     const q = g.q.trim().toLowerCase();
     return data.rows.filter((r) => (g.ultg === 'Semua' || r.ultg === g.ultg) && (g.pht === 'Semua' || r.pht === g.pht) && (!q || r.tower.toLowerCase().includes(q) || r.span.toLowerCase().includes(q)));
   }, [data.rows, g]);
+  /* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — gambaran umum, tidak tergantung tab aktif. */
+  const sheetData = useMemo(() => {
+    const rawan = scoped.filter((r) => r.get(K.rawan).toUpperCase() === 'TRUE');
+    const petir = scoped.filter((r) => has(r.get(K.petir)) || has(r.get(K.temuanPetir)));
+    const hewan = scoped.filter((r) => has(r.get(K.hewan)));
+    const pohon = scoped.filter((r) => has(r.get(K.pohon)));
+    const kritis = scoped.filter((r) => r.get(K.stTower) === 'KRITIS MAYOR');
+    const perPht = groupSum(scoped, (r) => r.pht);
+    return { rawan, petir, hewan, pohon, kritis, perPht };
+  }, [scoped]);
+  const sheetEl = (
+    <ExportSheet meta={{ title: 'Kerawanan Transmisi', subtitle: 'Sheet “SELURUH DATA” · ringkasan per tower UPT Bengkulu', fileBase: 'Kerawanan_Transmisi' }}>
+      <XKpis items={[
+        { label: 'Total Tower', value: fmtNum(scoped.length), sub: 'terfilter', color: C.cyan },
+        { label: 'Tower Rawan', value: fmtNum(sheetData.rawan.length), sub: `${scoped.length ? ((sheetData.rawan.length / scoped.length) * 100).toFixed(1) : '0'}%`, color: C.crit },
+        { label: 'Gangguan Petir', value: fmtNum(sheetData.petir.length), sub: 'tower', color: C.gold },
+        { label: 'Kritis Mayor', value: fmtNum(sheetData.kritis.length), sub: 'status tower', color: C.alert },
+      ]} />
+      <XSection title="Tower per PHT — terbanyak" height={200}>
+        <ResponsiveContainer><BarChart data={sheetData.perPht.slice(0, 10)} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} horizontal={false} /><XAxis type="number" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><YAxis type="category" dataKey="name" width={150} tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} tickFormatter={(v: string) => shortPht(v)} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => [fmtNum(v), 'Tower']} /><Bar dataKey="value" fill={C.crit} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
+      </XSection>
+      <XTable title="Tower per PHT — Top 8" headers={['PHT', 'ULTG', 'TOWER']}
+        aligns={['left', 'left', 'right']}
+        rows={sheetData.perPht.map((d) => [d.name, scoped.find((r) => r.pht === d.name)?.ultg ?? '—', fmtNum(d.value)])}
+        maxRows={8} />
+      <XTable title="Tower Kritis Mayor" headers={['TOWER', 'PHT', 'ULTG']}
+        aligns={['left', 'left', 'left']}
+        rows={sheetData.kritis.map((r) => [r.tower.replace(/^TOWER\s+/i, ''), r.pht, r.ultg])}
+        maxRows={6} />
+    </ExportSheet>
+  );
+
+  /* Label PHT pendek untuk chart export (tanpa awalan "SUTT 150 kV " agar muat satu baris). */
+  const shortPht = (s: string) => { const v = s.replace(/^SUTT \d+ kV /, ''); return v.length > 18 ? `${v.slice(0, 18)}…` : v; };
+
   const axis = { tick: { fill: t.axis, fontSize: 10 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
   const hbar = (d: { name: string; value: number }[], color = C.bar, w = 130) => (
@@ -180,20 +216,22 @@ function Body({ data }: { data: KerawananData }) {
       { key: 'tower', label: 'TOWER', value: (i) => i.row.tower.replace(/^TOWER\s+/i, '') }, { key: 'detail', label: 'DETAIL', value: (i) => i.detail, className: 'min-w-[320px]' },
     ];
     return (
-      <Shell tab={tab} setTab={setTab} g={g} setG={setG} phts={phts} ultgs={uniq(data.rows.map((r) => r.ultg))}
+      <><Shell tab={tab} setTab={setTab} g={g} setG={setG} phts={phts} ultgs={uniq(data.rows.map((r) => r.ultg))}
         filters={<><Select label="Severity" value={sev} onChange={tset('sev')} options={['Semua', 'ERROR', 'WARNING', 'INFO']} /><Select label="Tipe" value={tipe} onChange={tset('tipe')} options={['Semua', ...uniq(issues.map((i) => i.tipe))]} /></>}
         stats={<>{(['ERROR', 'WARNING', 'INFO'] as const).map((s) => <StatCard key={s} label={s} value={fmtNum(issues.filter((i) => i.sev === s).length)} color={s === 'ERROR' ? C.crit : s === 'WARNING' ? C.warn : C.blue} />)}</>}
         charts={null}
         table={<Card><div className="flex justify-between items-center mb-3 flex-wrap gap-2"><h3 className="h-section">Ketidaksesuaian Data ({fmtNum(view.length)})</h3><ExportButton title="Ketidaksesuaian Data Kerawanan" subtitle="Pemeriksaan otomatis sheet SELURUH DATA" cols={icols} rows={view} /></div><SortableTable rows={view} cols={icols} pageSize={50} /></Card>}
       />
+      {sheetEl}</>
     );
   }
 
   return (
-    <Shell tab={tab} setTab={setTab} g={g} setG={setG} phts={phts} ultgs={uniq(data.rows.map((r) => r.ultg))} filters={filters} stats={stats}
+    <><Shell tab={tab} setTab={setTab} g={g} setG={setG} phts={phts} ultgs={uniq(data.rows.map((r) => r.ultg))} filters={filters} stats={stats}
       charts={charts}
       table={<Card><div className="flex justify-between items-center mb-3 flex-wrap gap-2"><h3 className="h-section">{title} ({fmtNum(rows.length)} tower)</h3><ExportButton title={`Kerawanan Transmisi - ${title}`} subtitle={`ULTG ${g.ultg} · PHT ${g.pht}${g.q ? ` · cari "${g.q}"` : ''}`} cols={cols} rows={rows} /></div><SortableTable rows={rows} cols={cols} pageSize={50} maxHeight={600} /></Card>}
     />
+    {sheetEl}</>
   );
 }
 

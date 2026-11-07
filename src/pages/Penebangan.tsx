@@ -4,8 +4,9 @@ import { Axe, Scissors, TreePine, AlertOctagon } from 'lucide-react';
 import { PenebanganData, useData, usePageSources, useSource } from '../lib/data';
 import { PenebanganRow } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_SHORT } from '../lib/sheets';
-import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
+import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, PageHeader, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie } from '../components/charts';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export const PEN_STATUS_COLORS: Record<string, string> = { KRITIS: C.crit, 'BAHAYA 1': C.alert, 'BAHAYA 2': C.warn, WASPADA: C.blue, AMAN: C.ok };
 const statusGroup = (s: string) => (s.includes('KRITIS') ? 'KRITIS' : s.includes('BAHAYA') ? 'BAHAYA' : 'AMAN');
@@ -130,6 +131,25 @@ function Body({ data }: { data: PenebanganData }) {
         </div>
         <SortableTable rows={rows} cols={cols} pageSize={50} maxHeight={620} />
       </Card>
+
+      {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      <ExportSheet meta={{ title: 'Realisasi Penebangan', subtitle: `${view === 'UPT' ? 'UPT Bengkulu' : `ULTG ${view}`} · Tahun ${ylabel} · Status ${status}`, fileBase: 'Realisasi_Penebangan' }}>
+        <XKpis items={[
+          { label: `Total Pohon ${ylabel}`, value: fmtNum(total), sub: `${fmtNum(rows.length)} record`, color: C.cyan },
+          { label: 'Status Kritis', value: fmtNum(sum((x) => x.status.includes('KRITIS'))), color: C.crit },
+          { label: 'Penebangan', value: fmtNum(sum((x) => x.tindakan.includes('TEBANG'))), color: C.ok },
+          { label: 'Pemangkasan', value: fmtNum(sum((x) => x.tindakan.includes('PANGKAS'))), color: C.blue },
+        ]} />
+        <XSection title={`Tren Realisasi Penebangan ${ylabel} (per bulan)`} height={210}>
+          <ResponsiveContainer><BarChart data={monthly}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} vertical={false} /><XAxis dataKey="bulan" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><YAxis tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => fmtNum(v)} /><Legend formatter={(v) => <span style={{ color: LIGHT_CHART_THEME.legend.color }}>{v}</span>} />
+            {statuses.map((s) => <Bar key={s} dataKey={s} stackId="a" fill={PEN_STATUS_COLORS[s] ?? C.purple} />)}
+          </BarChart></ResponsiveContainer>
+        </XSection>
+        <XTable title="Realisasi per Section — Top 8" headers={['SECTION', 'JUMLAH', '% DARI TOTAL']}
+          aligns={['left', 'right', 'right']}
+          rows={perSection.map((d) => [d.name.length > 40 ? `${d.name.slice(0, 40)}…` : d.name, fmtNum(d.value), `${total ? ((d.value / total) * 100).toFixed(1) : '0'}%`])}
+          maxRows={8} />
+      </ExportSheet>
     </div>
   );
 }
