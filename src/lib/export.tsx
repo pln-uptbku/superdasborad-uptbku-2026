@@ -137,6 +137,14 @@ export function useExport() {
 
 const SHEET_FONT = "Inter, 'Plus Jakarta Sans', Arial, sans-serif";
 
+/** Posisi crop art header per bulan (object-position): strip header hanya
+    setinggi 96px dari gambar 1400x939, jadi yang tampil hanya satu pita
+    vertikal — posisi dipilih supaya pita itu memuat wajah petugas + landmark
+    bulannya (tema terbaca), bukan langit/bendera saja. Dipilih dari uji crop
+    2026-11-08: Okt 55% (wajah + mercusuar + bendera), Nov 62% (wajah penuh +
+    Tugu Pahlawan), Des 45% (keempat wajah + mercusuar + pantai). */
+const ART_POS: Record<number, string> = { 10: 'center 55%', 11: 'center 62%', 12: 'center 45%' };
+
 /** Isi lembar A4 — dipakai 2x: node capture (off-screen) dan salinan preview
     di modal. Salinan preview TIDAK di-capture (bukan node terdaftar), jadi
     transform scale di salinan tidak memengaruhi hasil export. */
@@ -156,18 +164,20 @@ function SheetInner({ meta, th, artOk, setArtOk, children }: {
         <div style={{ position: 'relative', height: 96, borderRadius: 10, overflow: 'hidden', background: '#0B2340', flexShrink: 0 }}>
           {artOk && (
             <img src={`/pdf/hdr-${th.month}.jpg`} alt="" onError={() => setArtOk(false)}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 22%' }} />
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: ART_POS[th.month] ?? 'center 55%' }} />
           )}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,35,64,0.15) 0%, rgba(11,35,64,0) 40%, rgba(11,35,64,0.55) 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,35,64,0.08) 0%, rgba(11,35,64,0) 40%, rgba(11,35,64,0.40) 100%)' }} />
           <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '7px 12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <span style={{ background: '#ffffff', borderRadius: 6, padding: '3px 6px', display: 'inline-flex' }}>
+              {/* Pelat logo putih dibuat tembus pandang (0.82) supaya logo
+                  menyatu dengan gambar latar, bukan kotak putih solid. */}
+              <span style={{ background: 'rgba(255,255,255,0.82)', borderRadius: 6, padding: '3px 6px', display: 'inline-flex' }}>
                 <img src="/pdf/danantara.png" alt="Danantara" style={{ width: 84, height: 21, display: 'block' }} />
               </span>
-              <span style={{ background: '#ffffff', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
+              <span style={{ background: 'rgba(255,255,255,0.82)', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
                 <img src="/pdf/upt.png" alt="UPT Bengkulu" style={{ width: 32, height: 40, display: 'block' }} />
               </span>
-              <span style={{ background: '#ffffff', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
+              <span style={{ background: 'rgba(255,255,255,0.82)', borderRadius: 6, padding: '2px 4px', display: 'inline-flex' }}>
                 <img src="/pdf/pln.png" alt="PLN" style={{ width: 30, height: 45, display: 'block' }} />
               </span>
             </div>
