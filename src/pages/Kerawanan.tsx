@@ -59,7 +59,8 @@ function Body({ data }: { data: KerawananData }) {
   const axis = { tick: { fill: t.axis, fontSize: 10 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
   const hbar = (d: { name: string; value: number }[], color = C.bar, w = 130) => (
-    <ResponsiveContainer><BarChart data={d} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={t.grid} horizontal={false} /><XAxis type="number" {...axis} /><YAxis type="category" dataKey="name" width={w} {...axis} /><Tooltip {...t.tooltip} formatter={(v: number) => fmtNum(v)} /><Bar dataKey="value" fill={color} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
+    <ResponsiveContainer><BarChart data={d} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={t.grid} horizontal={false} /><XAxis type="number" {...axis} /><YAxis type="category" dataKey="name" width={w} {...axis}
+      tickFormatter={(v: string) => (v.length > 28 ? `${v.slice(0, 28)}…` : v)} /><Tooltip {...t.tooltip} formatter={(v: number) => fmtNum(v)} /><Bar dataKey="value" fill={color} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
   );
 
   // ---- per-tab content ----

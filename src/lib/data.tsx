@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { fetchGrid, listTabs, SHEETS } from './sheets';
+import { FALLBACK_TABS, fetchGrid, fetchGridRange, listTabs, SHEETS } from './sheets';
 import {
   GangguanRow, KerawananRow, NkoMonth, PenebanganRow, TegakanRow, TrendSeries,
   parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parseTegakan, parseTrend,
@@ -11,7 +11,7 @@ export interface PenebanganData { rows: PenebanganRow[] }
 export interface KerawananData { rows: KerawananRow[]; keys: string[] }
 export interface GangguanData { rows: GangguanRow[] }
 
-type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; gangguan: GangguanData };
+type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData };
 export type SourceKey = keyof Sources;
 export interface SourceState<T> { status: 'idle' | 'loading' | 'ok' | 'error'; data?: T; error?: string; updatedAt?: Date }
 
@@ -68,6 +68,14 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
     if (!t) throw new Error('Sheet "SELURUH DATA" tidak ditemukan');
     return parseKerawanan(await fetchGrid(SHEETS.kerawanan, t.gid));
   },
+  async kerawananMap() {
+    // Peta di homepage hanya butuh 4 kolom (PHT, PETIR, ADA/TIDAK, STATUS TOWER).
+    // Ambil langsung kolom A:AD lewat gid yang sudah diketahui — tanpa listTabs
+    // (htmlview ~14 dtk) dan tanpa 42 kolom ekor sheet (export penuh ~48 dtk).
+    // Hasil terukur: ~4 dtk. Halaman /kerawanan tetap memakai sumber penuh di atas.
+    const gid = FALLBACK_TABS[SHEETS.kerawanan][0].gid;
+    return parseKerawanan(await fetchGridRange(SHEETS.kerawanan, gid, 'A1:AD'));
+  },
   async gangguan() {
     const tabs = await listTabs(SHEETS.gangguan);
     const t = tabs.find((x) => x.name.trim().toUpperCase() === 'UPTBKU');
@@ -77,7 +85,7 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
 };
 
 type State = { [K in SourceKey]: SourceState<Sources[K]> };
-const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, gangguan: { status: 'idle' } };
+const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' } };
 
 interface Ctx { state: State; ensure: (k: SourceKey) => void; refresh: (keys?: SourceKey[]) => void }
 const DataCtx = createContext<Ctx | null>(null);

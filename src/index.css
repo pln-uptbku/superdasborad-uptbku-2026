@@ -123,9 +123,9 @@ body {
   .chip-on { background: linear-gradient(135deg, #0072ce, #00aeef); color: #fff; border-color: transparent; box-shadow: 0 0 12px rgba(0, 174, 239, 0.55); }
   .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
   .tbl th {
-    background: var(--th-bg); color: var(--th-text); text-transform: uppercase; font-weight: 700; font-size: 11px;
-    letter-spacing: 0.04em; padding: 8px 10px; text-align: left; white-space: nowrap; position: sticky; top: 0;
-    border-bottom: 1px solid var(--row-border); backdrop-filter: blur(8px);
+    background: var(--bg2); color: var(--th-text); text-transform: uppercase; font-weight: 700; font-size: 11px;
+    letter-spacing: 0.04em; padding: 8px 10px; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 2;
+    border-bottom: 1px solid var(--row-border);
   }
   .dark .tbl th { background: #0a1d33; }
   .tbl td { padding: 7px 10px; border-bottom: 1px solid var(--row-border); color: var(--text); vertical-align: top; }
