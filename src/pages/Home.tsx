@@ -25,12 +25,12 @@ function MiniCard({ s, render }: { s: SourceState<unknown>; render: () => React.
 }
 
 export default function Home() {
-  usePageSources(['nko', 'tegakan', 'penebangan', 'gangguan', 'kerawanan']);
+  usePageSources(['nko', 'tegakan', 'penebangan', 'gangguan', 'kerawananMap']);
   const nko = useSource('nko');
   const teg = useSource('tegakan');
   const pen = useSource('penebangan');
   const ggn = useSource('gangguan');
-  const ker = useSource('kerawanan');
+  const ker = useSource('kerawananMap');
   const nav = useNavigate();
   const t = useChartTheme();
   const months = nko.data?.months ?? [];
@@ -144,7 +144,8 @@ export default function Home() {
         <Slot s={ggn}>{() => (
           <ResponsiveContainer><BarChart data={openPerLokasi} layout="vertical" margin={{ left: 10, right: 20 }}>
             <CartesianGrid stroke={t.grid} horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fill: t.axis, fontSize: 11 }} />
-            <YAxis type="category" dataKey="name" width={260} tick={{ fill: t.axis, fontSize: 10 }} />
+            <YAxis type="category" dataKey="name" width={300} tick={{ fill: t.axis, fontSize: 10 }}
+              tickFormatter={(v: string) => (v.length > 38 ? `${v.slice(0, 38)}…` : v)} />
             <Tooltip {...t.tooltip} formatter={(v: number) => [v, 'Gangguan OPEN']} />
             <Bar dataKey="value" fill={C.crit} radius={[0, 6, 6, 0]} />
           </BarChart></ResponsiveContainer>

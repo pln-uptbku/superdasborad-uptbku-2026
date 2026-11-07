@@ -34,10 +34,25 @@ export const FALLBACK_TABS: Record<string, { name: string; gid: string }[]> = {
 
 export type Grid = string[][];
 
+/** fetch dengan batas waktu: sheet yang menggantung tidak boleh membuat halaman
+ *  menampilkan spinner selamanya (kasus peta Kerawanan: export 1,3 MB ~60 dtk). */
+async function fetchWithTimeout(url: string, ms = 25000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw new Error(`Timeout ${ms / 1000} dtk: ${url.split('?')[0]}`);
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** Discover the tabs (name + gid) of a public spreadsheet. Falls back to the known list. */
 export async function listTabs(id: string): Promise<{ name: string; gid: string }[]> {
   try {
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/${id}/htmlview?_t=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetchWithTimeout(`https://docs.google.com/spreadsheets/d/${id}/htmlview?_t=${Date.now()}`);
     if (!res.ok) throw new Error(String(res.status));
     const html = await res.text();
     const out: { name: string; gid: string }[] = [];
@@ -57,7 +72,22 @@ export async function listTabs(id: string): Promise<{ name: string; gid: string 
 /** Fetch one tab as a CSV grid (no cache). */
 export async function fetchGrid(id: string, gid: string): Promise<Grid> {
   const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}&_t=${Date.now()}`;
-  const res = await fetch(url, { cache: 'no-store' });
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  if (/^\s*<!DOCTYPE html/i.test(text)) throw new Error('Sheet tidak publik / tidak dapat diakses');
+  const parsed = Papa.parse<string[]>(text, { skipEmptyLines: false });
+  return parsed.data as Grid;
+}
+
+/** Fetch satu tab sebagai CSV tapi hanya kolom dalam `range` (mis. 'A1:AD').
+ *  Untuk sheet yang sangat lebar: 'SELURUH DATA' Kerawanan 72 kolom × 8.368 baris
+ *  (1,3 MB) butuh ~48 dtk diekspor penuh, sedangkan A1:AD selesai ~4 dtk.
+ *  Bentuk grid sama (baris header 0–1 + data), jadi parser yang sama tetap jalan
+ *  selama kolom yang dibutuhkannya berada di dalam range. */
+export async function fetchGridRange(id: string, gid: string, range: string): Promise<Grid> {
+  const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}&range=${encodeURIComponent(range)}&_t=${Date.now()}`;
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
   if (/^\s*<!DOCTYPE html/i.test(text)) throw new Error('Sheet tidak publik / tidak dapat diakses');
