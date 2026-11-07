@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { Activity, Axe, Gauge, Images, LayoutDashboard, Menu, Moon, RefreshCw, ShieldAlert, Sun, TreePine, Zap, X } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import { DataProvider, PageSourcesProvider, useData, usePageSourceKeys } from './lib/data';
 import { LoadingScreen, ThemeProvider, UptLogo, useTheme } from './components/ui';
 // Setiap halaman dimuat terpisah (code splitting) supaya loading awal lebih ringan.
@@ -141,6 +142,7 @@ export default function App() {
         <PageSourcesProvider>
           <BrowserRouter>
             <Shell />
+            <Analytics />
           </BrowserRouter>
         </PageSourcesProvider>
       </DataProvider>
