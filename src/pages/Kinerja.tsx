@@ -226,8 +226,14 @@ function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Da
             r.targetSdRaw ? fmtAuto(r.targetSd) : '—',
             r.realSdRaw ? fmtAuto(r.realSd) : '—',
             r.pct110 == null ? '—' : fmtNum(r.pct110, 2),
-            fmtNum(r.nilai110, 2),
-            r.status || '—',
+            // Nilai + status indikator MASALAH dicetak merah tebal supaya
+            // langsung terbedakan dari nilai yang baik (masukan user 2026-11-07).
+            r.status === 'MASALAH'
+              ? <span style={{ color: '#DC2626', fontWeight: 800 }}>{fmtNum(r.nilai110, 2)}</span>
+              : fmtNum(r.nilai110, 2),
+            r.status === 'MASALAH'
+              ? <span style={{ color: '#DC2626', fontWeight: 800 }}>{r.status}</span>
+              : r.status || '—',
           ])}
           maxRows={40} />
         {m.merah.length > 0 && (
