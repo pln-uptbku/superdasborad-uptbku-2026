@@ -5,7 +5,8 @@ import { usePageSources, useSource } from '../lib/data';
 import { fetchGrid, listTabs, SHEETS } from '../lib/sheets';
 import { parseAset, parseRekap, Ultg as UltgName, UltgEvent } from '../lib/ultg';
 import { buildUltgPdf, PdfAssets, themeFor, UltgPdfPart } from '../lib/ultgPdf';
-import { Card, ErrorState, LoadingScreen, PageHeader } from '../components/ui';
+import { Card, ErrorState, LIGHT_CHART_THEME, LoadingScreen, PageHeader } from '../components/ui';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
 const LONG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -163,6 +164,50 @@ function UltgPanel({ name, events, kinerja, onPdf }: { name: UltgName; events: U
   );
 }
 
+/* Pie cluster penyebab + legenda Top 6 untuk lembar ringkasan export (bukan SimplePie
+   agar legenda muat berdampingan di setengah lebar A4). */
+function UltgPie({ name, events }: { name: UltgName; events: UltgEvent[] }) {
+  const total = events.length;
+  const clusters = useMemo(() => {
+    const m = new Map<string, number>(); events.forEach((e) => m.set(e.cluster, (m.get(e.cluster) || 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([n, v]) => ({ name: n, value: v }));
+  }, [events]);
+  return (
+    <div>
+      <div className="text-xs font-bold mb-1" style={{ color: '#0b2340' }}>ULTG {name} — {total} kejadian</div>
+      {total === 0 ? <div className="text-sm" style={{ color: '#4b6585' }}>Belum ada gangguan.</div> : (
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0" style={{ width: 140, height: 140 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={clusters} dataKey="value" nameKey="name" innerRadius={44} outerRadius={66} startAngle={90} endAngle={-270} stroke="none" isAnimationActive={false}>
+                  {clusters.map((c, i) => <Cell key={c.name} fill={colorOf(c.name, i)} />)}
+                </Pie>
+                <Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number, n: string) => [`${v} (${pct(v, total)}%)`, n]} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <div className="text-[10px] font-bold" style={{ color: '#4b6585' }}>TOTAL</div>
+              <div className="text-2xl font-extrabold" style={{ color: '#0b2340' }}>{total}</div>
+            </div>
+          </div>
+          <div className="flex-1 space-y-1.5 min-w-0">
+            {clusters.slice(0, 6).map((c, i) => (
+              <div key={c.name} className="flex items-center gap-2 text-xs">
+                <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: colorOf(c.name, i) }} />
+                <span className="font-semibold flex-1" style={{ color: '#0b2340' }}>{c.name.length > 18 ? `${c.name.slice(0, 18)}…` : c.name}</span>
+                <span className="font-bold" style={{ color: '#0b2340' }}>{c.value}</span>
+                <span style={{ color: '#4b6585' }}>({pct(c.value, total)}%)</span>
+              </div>
+            ))}
+            {clusters.length > 6 && <div className="text-[11px] italic" style={{ color: '#4b6585' }}>+{clusters.length - 6} penyebab lainnya</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Ultg() {
   usePageSources(['nko']);
   const nkoSrc = useSource('nko');
@@ -224,6 +269,38 @@ export default function Ultg() {
               <div className="t-muted text-xs mt-1">Penghantar ini belum ada di daftar tab ASET.</div>
             </Card>
           )}
+          {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG). */}
+          <ExportSheet meta={{ title: 'Kinerja ULTG', subtitle: `Bulan ${bulan} ${new Date().getFullYear()} · ULTG PEKALONGAN & LAHAT`, fileBase: `Kinerja_ULTG_${bulan}`, updatedAt: nkoSrc.updatedAt ?? null }}>
+            <XKpis items={[
+              { label: 'Total Gangguan', value: String(data.events.length), sub: 'kejadian', color: '#0072CE' },
+              { label: 'Re-close', value: String(data.events.filter((e) => e.type === 'Reclose').length), sub: 'kejadian', color: '#2E7D32' },
+              { label: 'Trip', value: String(data.events.filter((e) => e.type === 'Trip').length), sub: 'kejadian', color: '#F57C00' },
+              { label: 'Masuk Kinerja', value: String(data.kinerja.length), sub: 'kejadian', color: '#DC2626' },
+            ]} />
+            <XSection title="Cluster Gangguan Berdasarkan Penyebab" height={250}>
+              <div className="grid grid-cols-2 gap-4">
+                {(['PEKALONGAN', 'LAHAT'] as UltgName[]).map((u) => (
+                  <UltgPie key={u} name={u} events={data.events.filter((e) => e.ultg === u)} />
+                ))}
+              </div>
+            </XSection>
+            <XTable title="Gangguan Masuk Kinerja" headers={['TANGGAL', 'ULTG', 'PENGHANTAR', 'JENIS', 'PENYEBAB', 'KINERJA']}
+              aligns={['left', 'left', 'left', 'left', 'left', 'left']}
+              widths={['11%', '14%', '19%', '7%', '27%', '22%']}
+              rows={data.kinerja.map((e) => [
+                e.date, e.ultg ?? '—', e.line.length > 26 ? `${e.line.slice(0, 26)}…` : e.line, e.type,
+                e.cause.length > 30 ? `${e.cause.slice(0, 30)}…` : e.cause,
+                e.kinerja ? (e.kinerja.length > 20 ? `${e.kinerja.slice(0, 20)}…` : e.kinerja) : '—',
+              ])}
+              maxRows={8} />
+            <XTable title="Gangguan Terbaru" headers={['TANGGAL', 'ULTG', 'PENGHANTAR', 'JENIS', 'PENYEBAB']}
+              aligns={['left', 'left', 'left', 'left', 'left']}
+              rows={[...data.events].sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)).map((e) => [
+                e.date, e.ultg ?? '—', e.line.length > 26 ? `${e.line.slice(0, 26)}…` : e.line, e.type,
+                e.cause.length > 46 ? `${e.cause.slice(0, 46)}…` : e.cause,
+              ])}
+              maxRows={8} />
+          </ExportSheet>
           <div className="text-xs t-muted">Pembagian ULTG mengikuti daftar penghantar di tab ASET (fallback: lokasi GI). {data.title}.</div>
         </>
       )}

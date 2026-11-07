@@ -4,8 +4,9 @@ import { Activity, AlarmClock, FolderOpen, Building2 } from 'lucide-react';
 import { GangguanData, useData, usePageSources, useSource } from '../lib/data';
 import { GangguanRow } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
-import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, Modal, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
+import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, Modal, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie } from '../components/charts';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export function gangguanCols(mode: 'all' | 'upt' | 'fois'): Col<GangguanRow>[] {
   const base: Col<GangguanRow>[] = [
@@ -105,6 +106,21 @@ function Body({ data }: { data: GangguanData }) {
         <SortableTable rows={listFor} cols={cols} pageSize={50} maxHeight={640} onRowClick={setDetail}
           rowClassName={(r) => ((tab !== 'fois' && r.statusUpt === 'OPEN') || (tab === 'fois' && r.statusFois === 'OPEN') ? 'font-semibold' : '')} />
       </Card>
+      {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      <ExportSheet meta={{ title: 'Monitoring Gangguan', subtitle: `Tahun ${f.tahun} · Penyebab ${f.penyebab} · UPT ${f.upt} · FOIS ${f.fois}`, fileBase: 'Monitoring_Gangguan' }}>
+        <XKpis items={[
+          { label: 'Total Gangguan', value: fmtNum(rows.length), sub: 'terfilter', color: C.cyan },
+          { label: 'OPEN UPT', value: fmtNum(openUpt.length), sub: `${fmtNum(rows.length - openUpt.length)} close`, color: C.warn },
+          { label: 'OPEN FOIS', value: fmtNum(openFois.length), sub: `${fmtNum(rows.length - openFois.length)} close`, color: C.alert },
+          { label: 'Overdue', value: fmtNum(overdue.length), sub: 'target lewat, masih OPEN', color: C.crit },
+        ]} />
+        <XSection title="Penyebab Gangguan" height={200}>
+          <ResponsiveContainer><BarChart data={groupSum(rows, (r) => { const p = (r.penyebab || '').trim(); return p && p !== '-' && p !== '—' ? p : 'Tidak diketahui'; }).slice(0, 8)} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} horizontal={false} /><XAxis type="number" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} allowDecimals={false} /><YAxis type="category" dataKey="name" width={110} tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => [v, 'Kejadian']} /><Bar dataKey="value" fill={C.bar} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
+        </XSection>
+        <XTable title={`Gangguan OPEN UPT — ${openUpt.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'TARGET']}
+          rows={[...openUpt].sort((a, b) => Number(b.overdueUpt || b.overdueFois) - Number(a.overdueUpt || a.overdueFois)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : r.targetRaw || '—'])}
+          maxRows={18} />
+      </ExportSheet>
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.lokasi} — ${fmtDate(detail.tanggal)} ${detail.jam}` : ''}>
         {detail && (
           <div className="space-y-3 text-sm">
