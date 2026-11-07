@@ -294,18 +294,51 @@ export function ExportSheet({ meta, children }: { meta: ExportMeta; children: Re
 
 /* ---------------- primitif isi ringkasan ---------------- */
 
-export function XKpis({ items }: { items: { label: string; value: React.ReactNode; sub?: React.ReactNode; color?: string }[] }) {
+export function XKpis({ items }: { items: {
+  label: string;
+  /** Tulisan kecil di bawah label (mis. "(2023 s.d tahun berjalan)"). */
+  labelSub?: React.ReactNode;
+  value: React.ReactNode;
+  /** Baris tebal di bawah nilai (mis. "(Tahun Berjalan 2026 = 36)"). */
+  valueSub?: React.ReactNode;
+  sub?: React.ReactNode;
+  /** Baris pil kecil di bawah sub (mis. "96% tebang · 355 record"). */
+  badge?: React.ReactNode;
+  color?: string;
+  /** Ikon kecil di pojok kanan atas kartu, sewarna nilai (mis. <Activity size={20} />). */
+  icon?: React.ReactNode;
+}[] }) {
   return (
     <div style={{ display: 'flex', gap: 10 }}>
       {items.map((it, i) => (
-        <div key={i} style={{ flex: 1, minWidth: 0, border: '1px solid #D7E2EE', borderRadius: 10, padding: '9px 11px', background: '#F7FAFD' }}>
-          <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: '#5B6B80', textTransform: 'uppercase' }}>{it.label}</div>
+        <div key={i} style={{ flex: 1, minWidth: 0, border: '1px solid #D7E2EE', borderRadius: 10, padding: '9px 11px', background: '#F7FAFD', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: '#5B6B80', textTransform: 'uppercase' }}>{it.label}</div>
+              {it.labelSub != null && <div style={{ fontSize: 9, color: '#5B6B80', marginTop: 1, lineHeight: 1.3 }}>{it.labelSub}</div>}
+            </div>
+            {it.icon != null && <div style={{ color: it.color ?? '#0B2340', flexShrink: 0, lineHeight: 0 }}>{it.icon}</div>}
+          </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: it.color ?? '#0B2340', lineHeight: 1.15, marginTop: 3, wordBreak: 'break-word' }}>{it.value}</div>
+          {it.valueSub != null && <div style={{ fontSize: 10, fontWeight: 700, color: '#0072CE', marginTop: 2, lineHeight: 1.35 }}>{it.valueSub}</div>}
           {it.sub != null && <div style={{ fontSize: 10, color: '#5B6B80', marginTop: 2, lineHeight: 1.35 }}>{it.sub}</div>}
+          {it.badge != null && <div style={{ marginTop: 5 }}>{it.badge}</div>}
         </div>
       ))}
     </div>
   );
+}
+
+/** Pil kecil untuk baris badge kartu KPI (gaya badge dashboard, inline supaya
+    tercetak sama di PDF/IMAGE). */
+export function XPill({ tone, children }: { tone: 'ok' | 'crit' | 'warn' | 'info'; children: React.ReactNode }) {
+  const tones = {
+    ok: { background: '#E7F8EE', color: '#15803D' },
+    crit: { background: '#FDECEC', color: '#DC2626' },
+    warn: { background: '#FFF7E0', color: '#B45309' },
+    info: { background: '#E8F4FD', color: '#0072CE' },
+  } as const;
+  return <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, ...tones[tone] }}>{children}</span>;
 }
 
 export function XSection({ title, right, height, children }: { title: string; right?: React.ReactNode; height: number; children: React.ReactNode }) {
