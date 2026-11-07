@@ -24,8 +24,40 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 export const PALETTE = [C.blue, C.ok, C.warn, C.alert, C.crit, C.purple, C.cyan, '#FF6FB5', '#9BE15D', '#5B8CFF', C.gold, '#36CFC9'];
 
-export function useChartTheme() {
+/** Tema chart terang untuk lembar export (sheet selalu putih, apa pun tema dashboard). */
+export interface ChartTheme {
+  axis: string;
+  grid: string;
+  tooltip: {
+    contentStyle: React.CSSProperties;
+    labelStyle: React.CSSProperties;
+    itemStyle: React.CSSProperties;
+    cursor: { fill: string };
+  };
+  legend: { color: string };
+  text: string;
+}
+export const LIGHT_CHART_THEME: ChartTheme = {
+  axis: '#4b6585',
+  grid: 'rgba(11,35,64,0.08)',
+  tooltip: {
+    contentStyle: { background: '#ffffff', border: '1px solid rgba(0,114,206,0.25)', borderRadius: 10, color: '#0b2340' },
+    labelStyle: { color: '#0072ce', fontWeight: 700 },
+    itemStyle: { color: '#0b2340' },
+    cursor: { fill: 'rgba(0,114,206,0.06)' },
+  },
+  legend: { color: '#0b2340' },
+  text: '#0b2340',
+};
+const ChartThemeCtx = React.createContext<ChartTheme | null>(null);
+export function ChartThemeProvider({ theme, children }: { theme: ChartTheme; children: React.ReactNode }) {
+  return <ChartThemeCtx.Provider value={theme}>{children}</ChartThemeCtx.Provider>;
+}
+
+export function useChartTheme(): ChartTheme {
   const { dark } = useTheme();
+  const override = React.useContext(ChartThemeCtx);
+  if (override) return override;
   return {
     axis: dark ? '#FFD978' : '#4b6585',
     grid: dark ? 'rgba(142,170,199,0.15)' : 'rgba(11,35,64,0.08)',

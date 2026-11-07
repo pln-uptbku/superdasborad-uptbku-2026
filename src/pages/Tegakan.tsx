@@ -6,6 +6,7 @@ import { TegakanRow, TEG_STATUSES, TrendSeries } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Search, Select, SortableTable, StatCard, STATUS_COLORS, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie, TegakanUltgChart, TEG_LABEL } from '../components/charts';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export const sumJml = (rows: TegakanRow[], status?: string) => rows.reduce((a, r) => a + (!status || r.status === status ? r.jml : 0), 0);
 
@@ -33,6 +34,16 @@ function Body({ data }: { data: TegakanData }) {
       (!q || `${r.span} ${r.gi} ${r.pht} ${r.petugas} ${r.tipe}`.toLowerCase().includes(q)));
   }, [data.rows, f]);
   const total = sumJml(rows);
+  const perPht = useMemo(() => {
+    const mm = new Map<string, { ultg: string; NORMAL: number; BAHAYA_II: number; BAHAYA_I: number; KRITIS: number; total: number }>();
+    for (const r of rows) {
+      const o = mm.get(r.pht) ?? { ultg: r.ultg, NORMAL: 0, BAHAYA_II: 0, BAHAYA_I: 0, KRITIS: 0, total: 0 };
+      o[r.status as 'NORMAL' | 'BAHAYA_II' | 'BAHAYA_I' | 'KRITIS'] += r.jml;
+      o.total += r.jml;
+      mm.set(r.pht, o);
+    }
+    return [...mm.entries()].sort((a, b) => b[1].KRITIS - a[1].KRITIS || b[1].total - a[1].total);
+  }, [rows]);
   return (
     <div className="space-y-5">
       <PageHeader title="Tegakan (NS)" subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}
@@ -61,6 +72,20 @@ function Body({ data }: { data: TegakanData }) {
       {tab === 'data' && <DataTable rows={rows} />}
       {tab === 'tren' && <Tren trends={data.trends} error={data.trendError} />}
       {tab === 'validasi' && <Validasi trends={data.trends} error={data.trendError} />}
+
+      {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      <ExportSheet meta={{ title: 'Tegakan (NS)', subtitle: `Sheet “TARIKAN NEW SRINTAMI” · ${fmtNum(sumJml(data.rows))} tegakan · ${fmtNum(data.rows.length)} record`, fileBase: 'Tegakan_NS' }}>
+        <XKpis items={[
+          { label: 'Total Tegakan', value: fmtNum(total), sub: `${fmtNum(rows.length)} record`, color: C.cyan },
+          ...TEG_STATUSES.map((s) => ({ label: TEG_LABEL[s], value: fmtNum(sumJml(rows, s)), sub: `${total ? ((sumJml(rows, s) / total) * 100).toFixed(1) : '0'}%`, color: STATUS_COLORS[s] })),
+        ]} />
+        <XSection title="Distribusi Status (∑ JML)" height={200}>
+          <SimplePie data={TEG_STATUSES.map((s) => ({ name: TEG_LABEL[s], value: sumJml(rows, s) }))} colors={{ Normal: C.ok, 'Bahaya II': C.warn, 'Bahaya I': C.alert, Kritis: C.crit }} />
+        </XSection>
+        <XTable title="Rekap per Penghantar — kritis terbanyak" headers={['PENGHANTAR', 'ULTG', 'NORMAL', 'BAHAYA II', 'BAHAYA I', 'KRITIS', 'TOTAL']}
+          aligns={['left', 'left', 'right', 'right', 'right', 'right', 'right']}
+          rows={perPht.map(([name, v]) => [name, v.ultg, fmtNum(v.NORMAL), fmtNum(v.BAHAYA_II), fmtNum(v.BAHAYA_I), fmtNum(v.KRITIS), fmtNum(v.total)])} />
+      </ExportSheet>
     </div>
   );
 }

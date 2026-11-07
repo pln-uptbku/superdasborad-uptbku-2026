@@ -5,12 +5,13 @@ import { Activity, Axe, Gauge, TreePine, TrendingDown, Map as MapIcon, LayoutGri
 import { SourceState, useData, usePageSources, useSource } from '../lib/data';
 import { GangguanRow, KerawananRow, NkoMonth, pctOf } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
-import { Badge, C, Card, ChartCard, Col, ErrorState, LoadingScreen, PageHeader, SortableTable, StatCard, Tabs, groupSum, useChartTheme } from '../components/ui';
+import { Badge, C, Card, ChartCard, Col, ErrorState, LIGHT_CHART_THEME, LoadingScreen, PageHeader, SortableTable, StatCard, Tabs, groupSum, useChartTheme } from '../components/ui';
 import { GaugeDonut, SimplePie, TegakanUltgChart } from '../components/charts';
 import { MonthChips, lowestProblem, statusCounts } from './Kinerja';
 import { sumJml } from './Tegakan';
 import { penebanganYear } from './Penebangan';
 import { AnalisaNkoLine } from '../components/AnalisaNko';
+import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 /** Section-level gate so one failing sheet never blanks the whole HOME page. */
 function Slot({ s, children, h = 280 }: { s: SourceState<unknown>; children: () => React.ReactNode; h?: number }) {
@@ -33,6 +34,7 @@ export default function Home() {
   const ker = useSource('kerawananMap');
   const nav = useNavigate();
   const t = useChartTheme();
+  const tx = LIGHT_CHART_THEME; // tema terang untuk lembar export (selalu putih)
   const months = nko.data?.months ?? [];
   const [selRaw, setSel] = useState<number | null>(null);
   const sel = selRaw ?? months[months.length - 1]?.monthNo ?? 1;
@@ -151,6 +153,41 @@ export default function Home() {
           </BarChart></ResponsiveContainer>
         )}</Slot>
       </ChartCard>
+
+      {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      <ExportSheet meta={{ title: 'Dashboard Kinerja UPT Bengkulu', subtitle: `Ringkasan seluruh data · NKO bulan ${m ? MONTHS_LONG[m.monthNo - 1] : '—'} ${year}`, fileBase: 'Dashboard_UPT_Bengkulu', updatedAt: nko.updatedAt ?? null }}>
+        <XKpis items={[
+          { label: 'Total Gangguan', value: fmtNum(gRows.length), sub: <>Tahun berjalan {year}: {fmtNum(gRows.filter((r) => (r.tahun || String(r.tanggal?.getFullYear() ?? '')).trim() === String(year)).length)}</>, color: C.cyan },
+          { label: 'NKO Score (cap 110%)', value: fmtNum(m?.total110 != null ? Math.min(110, m.total110) : null, 2), sub: <>cap 100%: {fmtNum(m?.total100, 2)} · {m ? MONTHS_SHORT[m.monthNo - 1] : ''}</>, color: (m?.total110 ?? 0) >= 100 ? C.ok : C.warn },
+          { label: `Realisasi Penebangan ${year}`, value: fmtNum(pen.data ? penebanganYear(pen.data.rows, year).total : null), sub: pen.data ? <>{fmtNum(penebanganYear(pen.data.rows, year).tebang)} tebang · {fmtNum(penebanganYear(pen.data.rows, year).pangkas)} pangkas</> : '—', color: C.ok },
+          { label: 'Tegakan Kritis', value: fmtNum(teg.data ? sumJml(teg.data.rows, 'KRITIS') : null), sub: teg.data ? <>dari {fmtNum(sumJml(teg.data.rows))} total · {((sumJml(teg.data.rows, 'KRITIS') / Math.max(1, sumJml(teg.data.rows))) * 100).toFixed(1)}% kritis</> : '—', color: C.crit },
+          { label: 'Kinerja Terendah', value: (() => { const low = m ? lowestProblem(m) : null; return low ? low.short : 'Semua BAIK'; })(), sub: (() => { const low = m ? lowestProblem(m) : null; return low ? <>{low.no}. {low.name} · {fmtNum(pctOf(low), 2)}%</> : 'Tidak ada MASALAH'; })(), color: (() => { const low = m ? lowestProblem(m) : null; return low ? (low.status === 'MASALAH' ? C.crit : C.warn) : C.ok; })() },
+        ]} />
+        <XSection title="Trend NKO Bulanan" height={190}>
+          <ResponsiveContainer><AreaChart data={nkoTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+            <defs><linearGradient id="gNkoX" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.blue} stopOpacity={0.5} /><stop offset="1" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
+            <CartesianGrid stroke={tx.grid} /><XAxis dataKey="bulan" tick={{ fill: tx.axis, fontSize: 11 }} /><YAxis domain={['dataMin - 3', 'dataMax + 2']} tick={{ fill: tx.axis, fontSize: 11 }} tickFormatter={(v) => fmtNum(v, 0)} />
+            <Tooltip {...tx.tooltip} formatter={(v: number, n: string) => [fmtNum(v, 2), n === 'cap110' ? 'NKO cap 110%' : 'NKO cap 100%']} />
+            <Legend formatter={(v) => <span style={{ color: tx.legend.color }}>{v === 'cap110' ? 'cap 110%' : 'cap 100%'}</span>} />
+            <Area type="monotone" dataKey="cap110" stroke={C.blue} fill="url(#gNkoX)" strokeWidth={3} dot={{ r: 3 }} />
+            <Area type="monotone" dataKey="cap100" stroke={C.ok} fill="transparent" strokeWidth={2} dot={{ r: 2 }} />
+          </AreaChart></ResponsiveContainer>
+        </XSection>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <XSection title="Status KPI" height={190}>
+              <SimplePie data={m ? Object.entries(statusCounts(m)).map(([name, value]) => ({ name, value })).filter((d) => d.value) : []} colors={{ BAIK: C.ok, MASALAH: C.crit, 'HATI-HATI': C.warn }} />
+            </XSection>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <XSection title="Target Pencapaian NKO" height={190}>
+              <GaugeDonut value={m?.total110 != null ? Math.min(110, m.total110) : null} label="NKO cap 110%" sub={`Target 100 · ${m ? MONTHS_SHORT[m.monthNo - 1] : ''}`} />
+            </XSection>
+          </div>
+        </div>
+        <XTable title={`Gangguan OPEN — ${openRows.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'TARGET']}
+          rows={[...openRows].sort((a, b) => (b.tanggal?.getTime() ?? 0) - (a.tanggal?.getTime() ?? 0)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab.length > 46 ? `${r.penyebab.slice(0, 46)}…` : r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : (r.targetRaw || '—')])} />
+      </ExportSheet>
     </div>
   );
 }
