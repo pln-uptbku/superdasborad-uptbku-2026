@@ -25,6 +25,14 @@ function MiniCard({ s, render }: { s: SourceState<unknown>; render: () => React.
   return <Card className="flex items-center justify-center text-xs t-muted min-h-[130px]">{s.status === 'error' ? 'Data tidak dapat dimuat' : 'Memuat…'}</Card>;
 }
 
+/** Sel status gangguan di lembar export: OPEN merah, CLOSE hijau
+    (masukan user 2026-11-07); nilai lain tampil apa adanya. */
+const statusCell = (s: string) => s === 'OPEN'
+  ? <span style={{ color: '#DC2626', fontWeight: 700 }}>OPEN</span>
+  : s === 'CLOSE'
+    ? <span style={{ color: '#16A34A', fontWeight: 700 }}>CLOSE</span>
+    : s;
+
 export default function Home() {
   usePageSources(['nko', 'tegakan', 'penebangan', 'gangguan', 'kerawananMap']);
   const nko = useSource('nko');
@@ -185,8 +193,8 @@ export default function Home() {
             </XSection>
           </div>
         </div>
-        <XTable title={`Gangguan OPEN — ${openRows.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'TARGET']}
-          rows={[...openRows].sort((a, b) => (b.tanggal?.getTime() ?? 0) - (a.tanggal?.getTime() ?? 0)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab.length > 46 ? `${r.penyebab.slice(0, 46)}…` : r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : (r.targetRaw || '—')])}
+        <XTable title={`Gangguan OPEN — ${openRows.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'STATUS FOIS', 'TARGET']}
+          rows={[...openRows].sort((a, b) => (b.tanggal?.getTime() ?? 0) - (a.tanggal?.getTime() ?? 0)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab.length > 46 ? `${r.penyebab.slice(0, 46)}…` : r.penyebab, statusCell(r.statusUpt), statusCell(r.statusFois), r.target ? fmtDate(r.target) : (r.targetRaw || '—')])}
           maxRows={11} />
       </ExportSheet>
     </div>
