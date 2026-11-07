@@ -204,7 +204,7 @@ export function XSection({ title, right, height, children }: { title: string; ri
   );
 }
 
-export function XTable({ title, headers, rows, aligns, maxRows = 9, widths }: {
+export function XTable({ title, headers, rows, aligns, maxRows = 9, widths, compact }: {
   title?: string;
   headers: string[];
   rows: React.ReactNode[][];
@@ -213,16 +213,18 @@ export function XTable({ title, headers, rows, aligns, maxRows = 9, widths }: {
   /** Lebar kolom eksplisit (mis. ['11%','14%',...]); bila diisi, tabel pakai layout fixed
       supaya kolom sempit (tanggal/nama ULTG) tidak terjepit dan terpotong tengah kata. */
   widths?: string[];
+  /** Baris rapat (font 10, padding 3px) untuk tabel panjang yang harus muat 1 halaman. */
+  compact?: boolean;
 }) {
   const shown = rows.slice(0, maxRows);
   return (
     <div>
       {title && <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0B2340', marginBottom: 6 }}>{title}</div>}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: '#0B2340', tableLayout: widths ? 'fixed' : undefined }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: compact ? 10 : 11, color: '#0B2340', tableLayout: widths ? 'fixed' : undefined }}>
         <thead>
           <tr>
             {headers.map((h, i) => (
-              <th key={i} style={{ background: '#0B2340', color: '#FFC940', textAlign: aligns?.[i] ?? 'left', padding: '6px 8px', fontSize: 10, letterSpacing: 0.4, width: widths?.[i] }}>{h}</th>
+              <th key={i} style={{ background: '#0B2340', color: '#FFC940', textAlign: aligns?.[i] ?? 'left', padding: compact ? '5px 6px' : '6px 8px', fontSize: 10, letterSpacing: 0.4, width: widths?.[i] }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -230,7 +232,7 @@ export function XTable({ title, headers, rows, aligns, maxRows = 9, widths }: {
           {shown.map((r, i) => (
             <tr key={i} style={{ background: i % 2 ? '#FFFFFF' : '#F0F6FC' }}>
               {r.map((c, j) => (
-                <td key={j} style={{ padding: '5px 8px', textAlign: aligns?.[j] ?? 'left', borderBottom: '1px solid #E3ECF5', verticalAlign: 'top', wordBreak: 'break-word' }}>{c}</td>
+                <td key={j} style={{ padding: compact ? '2px 6px' : '5px 8px', textAlign: aligns?.[j] ?? 'left', borderBottom: '1px solid #E3ECF5', verticalAlign: 'top', wordBreak: 'break-word' }}>{c}</td>
               ))}
             </tr>
           ))}

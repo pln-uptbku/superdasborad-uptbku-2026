@@ -7,7 +7,7 @@ import { fmtAuto, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, Gate, PageHeader, Select, SortableTable, StatCard, useChartTheme } from '../components/ui';
 import { NkoBobotNilaiChart, SimplePie, pctColor } from '../components/charts';
 import AnalisaNko from '../components/AnalisaNko';
-import { ExportSheet, XKpis, XNote, XSection, XTable } from '../lib/export';
+import { ExportSheet, XKpis, XNote, XTable } from '../lib/export';
 import { useLocation } from 'react-router-dom';
 
 export function MonthChips({ months, value, onChange }: { months: NkoMonth[]; value: number; onChange: (m: number) => void }) {
@@ -214,20 +214,22 @@ function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Da
           { label: 'HATI-HATI', value: fmtNum(counts['HATI-HATI']), sub: 'indikator', color: C.warn },
           { label: 'MASALAH', value: fmtNum(counts.MASALAH), sub: 'indikator', color: C.crit },
         ]} />
-        <XSection title="Bobot vs Nilai per Indikator" right="Hijau ≥100% · Kuning 95–<100% · Merah <95%" height={210}>
-          <NkoBobotNilaiChart rows={m.rows} />
-        </XSection>
-        <XTable title="Indikator — pencapaian terendah" headers={['NO', 'INDIKATOR', 'BOBOT', '% (110%)', 'NILAI 110%', 'STATUS']}
-          aligns={['left', 'left', 'right', 'right', 'right', 'left']}
-          rows={[...indicatorsOf(m)].filter((r) => !r.penalty).sort((a, b) => (a.pct110 ?? 999) - (b.pct110 ?? 999)).map((r) => [
+        <XTable title={`Indikator Kinerja Utama — Kumulatif S.D. ${MONTHS_LONG[m.monthNo - 1]}`}
+          headers={['NO', 'INDIKATOR', 'BOBOT', `TARGET S.D. ${MONTHS_SHORT[m.monthNo - 1].toUpperCase()}`, `REALISASI S.D. ${MONTHS_SHORT[m.monthNo - 1].toUpperCase()}`, '% (110%)', 'NILAI 110%', 'STATUS']}
+          aligns={['left', 'left', 'right', 'right', 'right', 'right', 'right', 'left']}
+          widths={['5%', '36%', '6%', '11%', '11%', '8%', '9%', '14%']}
+          compact
+          rows={[...indicatorsOf(m)].filter((r) => !r.penalty).map((r) => [
             r.no,
-            r.short.length > 44 ? `${r.short.slice(0, 44)}…` : r.short,
+            r.name.length > 42 ? `${r.name.slice(0, 42)}…` : r.name,
             r.bobot,
+            r.targetSdRaw ? fmtAuto(r.targetSd) : '—',
+            r.realSdRaw ? fmtAuto(r.realSd) : '—',
             r.pct110 == null ? '—' : fmtNum(r.pct110, 2),
             fmtNum(r.nilai110, 2),
             r.status || '—',
           ])}
-          maxRows={16} />
+          maxRows={40} />
         {m.merah.length > 0 && (
           <XNote>Kinerja merah: <b>{m.merah[0].indikator}</b> — {m.merah[0].penyebab} · Status: {m.merah[0].status}</XNote>
         )}
