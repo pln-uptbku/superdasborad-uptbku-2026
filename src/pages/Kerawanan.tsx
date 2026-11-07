@@ -78,10 +78,10 @@ function Body({ data }: { data: KerawananData }) {
       <XSection title="Tower per PHT — terbanyak" height={200}>
         <ResponsiveContainer><BarChart data={sheetData.perPht.slice(0, 10)} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} horizontal={false} /><XAxis type="number" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><YAxis type="category" dataKey="name" width={150} tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} tickFormatter={(v: string) => shortPht(v)} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => [fmtNum(v), 'Tower']} /><Bar dataKey="value" fill={C.crit} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
       </XSection>
-      <XTable title="Tower per PHT — Top 8" headers={['PHT', 'ULTG', 'TOWER']}
+      <XTable title="Tower per PHT — Top 10" headers={['PHT', 'ULTG', 'TOWER']}
         aligns={['left', 'left', 'right']}
         rows={sheetData.perPht.map((d) => [d.name, scoped.find((r) => r.pht === d.name)?.ultg ?? '—', fmtNum(d.value)])}
-        maxRows={8} />
+        maxRows={10} />
       <XTable title="Tower Kritis Mayor" headers={['TOWER', 'PHT', 'ULTG']}
         aligns={['left', 'left', 'left']}
         rows={sheetData.kritis.map((r) => [r.tower.replace(/^TOWER\s+/i, ''), r.pht, r.ultg])}

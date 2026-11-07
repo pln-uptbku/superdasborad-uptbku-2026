@@ -267,16 +267,16 @@ export function ExportMenu() {
   }, [open ]);
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn" disabled={!ready || busy} onClick={() => setOpen((o) => !o)} title={ready ? 'Export ringkasan halaman ini (1 halaman, A4 tegak)' : 'Menunggu data halaman dimuat…'}>
+      <button className="btn btn-primary" disabled={!ready || busy} onClick={() => setOpen((o) => !o)} title={ready ? 'Export ringkasan halaman ini (1 halaman, A4 tegak)' : 'Menunggu data halaman dimuat…'}>
         <FileDown size={15} /> {busy ? 'Membuat…' : 'Export'}
       </button>
       {open && (
         <div className="card" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', minWidth: 250, zIndex: 50, padding: 6, textAlign: 'left' }}>
           <button className="btn w-full" style={{ justifyContent: 'flex-start' }} onClick={async () => { setOpen(false); await exportKind('pdf'); }}>
-            Export PDF — 1 halaman (A4 tegak)
+            PDF
           </button>
           <button className="btn w-full" style={{ justifyContent: 'flex-start', marginTop: 4 }} onClick={async () => { setOpen(false); await exportKind('png'); }}>
-            Export PNG — 1 halaman (gambar)
+            IMAGE
           </button>
           <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px 2px', lineHeight: 1.4 }}>
             Ringkasan halaman ini: KPI krusial, chart utama &amp; tabel kunci.

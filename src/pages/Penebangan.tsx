@@ -145,10 +145,10 @@ function Body({ data }: { data: PenebanganData }) {
             {statuses.map((s) => <Bar key={s} dataKey={s} stackId="a" fill={PEN_STATUS_COLORS[s] ?? C.purple} />)}
           </BarChart></ResponsiveContainer>
         </XSection>
-        <XTable title="Realisasi per Section — Top 8" headers={['SECTION', 'JUMLAH', '% DARI TOTAL']}
+        <XTable title="Realisasi per Section" headers={['SECTION', 'JUMLAH', '% DARI TOTAL']}
           aligns={['left', 'right', 'right']}
           rows={perSection.map((d) => [d.name.length > 40 ? `${d.name.slice(0, 40)}…` : d.name, fmtNum(d.value), `${total ? ((d.value / total) * 100).toFixed(1) : '0'}%`])}
-          maxRows={8} />
+          maxRows={15} />
       </ExportSheet>
     </div>
   );

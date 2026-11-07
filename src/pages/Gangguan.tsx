@@ -118,7 +118,8 @@ function Body({ data }: { data: GangguanData }) {
           <ResponsiveContainer><BarChart data={groupSum(rows, (r) => { const p = (r.penyebab || '').trim(); return p && p !== '-' && p !== '—' ? p : 'Tidak diketahui'; }).slice(0, 8)} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} horizontal={false} /><XAxis type="number" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} allowDecimals={false} /><YAxis type="category" dataKey="name" width={110} tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => [v, 'Kejadian']} /><Bar dataKey="value" fill={C.bar} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
         </XSection>
         <XTable title={`Gangguan OPEN UPT — ${openUpt.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'TARGET']}
-          rows={[...openUpt].sort((a, b) => Number(b.overdueUpt || b.overdueFois) - Number(a.overdueUpt || a.overdueFois)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : r.targetRaw || '—'])} />
+          rows={[...openUpt].sort((a, b) => Number(b.overdueUpt || b.overdueFois) - Number(a.overdueUpt || a.overdueFois)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : r.targetRaw || '—'])}
+          maxRows={18} />
       </ExportSheet>
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.lokasi} — ${fmtDate(detail.tanggal)} ${detail.jam}` : ''}>
         {detail && (

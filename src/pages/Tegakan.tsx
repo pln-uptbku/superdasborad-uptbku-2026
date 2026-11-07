@@ -84,7 +84,8 @@ function Body({ data }: { data: TegakanData }) {
         </XSection>
         <XTable title="Rekap per Penghantar — kritis terbanyak" headers={['PENGHANTAR', 'ULTG', 'NORMAL', 'BAHAYA II', 'BAHAYA I', 'KRITIS', 'TOTAL']}
           aligns={['left', 'left', 'right', 'right', 'right', 'right', 'right']}
-          rows={perPht.map(([name, v]) => [name, v.ultg, fmtNum(v.NORMAL), fmtNum(v.BAHAYA_II), fmtNum(v.BAHAYA_I), fmtNum(v.KRITIS), fmtNum(v.total)])} />
+          rows={perPht.map(([name, v]) => [name, v.ultg, fmtNum(v.NORMAL), fmtNum(v.BAHAYA_II), fmtNum(v.BAHAYA_I), fmtNum(v.KRITIS), fmtNum(v.total)])}
+          maxRows={16} />
       </ExportSheet>
     </div>
   );

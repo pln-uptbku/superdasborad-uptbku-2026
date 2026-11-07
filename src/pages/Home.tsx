@@ -163,7 +163,7 @@ export default function Home() {
           { label: 'Tegakan Kritis', value: fmtNum(teg.data ? sumJml(teg.data.rows, 'KRITIS') : null), sub: teg.data ? <>dari {fmtNum(sumJml(teg.data.rows))} total · {((sumJml(teg.data.rows, 'KRITIS') / Math.max(1, sumJml(teg.data.rows))) * 100).toFixed(1)}% kritis</> : '—', color: C.crit },
           { label: 'Kinerja Terendah', value: (() => { const low = m ? lowestProblem(m) : null; return low ? low.short : 'Semua BAIK'; })(), sub: (() => { const low = m ? lowestProblem(m) : null; return low ? <>{low.no}. {low.name} · {fmtNum(pctOf(low), 2)}%</> : 'Tidak ada MASALAH'; })(), color: (() => { const low = m ? lowestProblem(m) : null; return low ? (low.status === 'MASALAH' ? C.crit : C.warn) : C.ok; })() },
         ]} />
-        <XSection title="Trend NKO Bulanan" height={190}>
+        <XSection title="Trend NKO Bulanan" height={180}>
           <ResponsiveContainer><AreaChart data={nkoTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
             <defs><linearGradient id="gNkoX" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.blue} stopOpacity={0.5} /><stop offset="1" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
             <CartesianGrid stroke={tx.grid} /><XAxis dataKey="bulan" tick={{ fill: tx.axis, fontSize: 11 }} /><YAxis domain={['dataMin - 3', 'dataMax + 2']} tick={{ fill: tx.axis, fontSize: 11 }} tickFormatter={(v) => fmtNum(v, 0)} />
@@ -175,18 +175,19 @@ export default function Home() {
         </XSection>
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <XSection title="Status KPI" height={190}>
+            <XSection title="Status KPI" height={180}>
               <SimplePie data={m ? Object.entries(statusCounts(m)).map(([name, value]) => ({ name, value })).filter((d) => d.value) : []} colors={{ BAIK: C.ok, MASALAH: C.crit, 'HATI-HATI': C.warn }} />
             </XSection>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <XSection title="Target Pencapaian NKO" height={190}>
+            <XSection title="Target Pencapaian NKO" height={180}>
               <GaugeDonut value={m?.total110 != null ? Math.min(110, m.total110) : null} label="NKO cap 110%" sub={`Target 100 · ${m ? MONTHS_SHORT[m.monthNo - 1] : ''}`} />
             </XSection>
           </div>
         </div>
         <XTable title={`Gangguan OPEN — ${openRows.length} kasus`} headers={['LOKASI', 'TANGGAL', 'PENYEBAB', 'STATUS UPT', 'TARGET']}
-          rows={[...openRows].sort((a, b) => (b.tanggal?.getTime() ?? 0) - (a.tanggal?.getTime() ?? 0)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab.length > 46 ? `${r.penyebab.slice(0, 46)}…` : r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : (r.targetRaw || '—')])} />
+          rows={[...openRows].sort((a, b) => (b.tanggal?.getTime() ?? 0) - (a.tanggal?.getTime() ?? 0)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab.length > 46 ? `${r.penyebab.slice(0, 46)}…` : r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : (r.targetRaw || '—')])}
+          maxRows={11} />
       </ExportSheet>
     </div>
   );

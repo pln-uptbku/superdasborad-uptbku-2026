@@ -277,7 +277,7 @@ export default function Ultg() {
               { label: 'Trip', value: String(data.events.filter((e) => e.type === 'Trip').length), sub: 'kejadian', color: '#F57C00' },
               { label: 'Masuk Kinerja', value: String(data.kinerja.length), sub: 'kejadian', color: '#DC2626' },
             ]} />
-            <XSection title="Cluster Gangguan Berdasarkan Penyebab" height={215}>
+            <XSection title="Cluster Gangguan Berdasarkan Penyebab" height={250}>
               <div className="grid grid-cols-2 gap-4">
                 {(['PEKALONGAN', 'LAHAT'] as UltgName[]).map((u) => (
                   <UltgPie key={u} name={u} events={data.events.filter((e) => e.ultg === u)} />
@@ -291,6 +291,13 @@ export default function Ultg() {
                 e.date, e.ultg ?? '—', e.line.length > 26 ? `${e.line.slice(0, 26)}…` : e.line, e.type,
                 e.cause.length > 30 ? `${e.cause.slice(0, 30)}…` : e.cause,
                 e.kinerja ? (e.kinerja.length > 20 ? `${e.kinerja.slice(0, 20)}…` : e.kinerja) : '—',
+              ])}
+              maxRows={8} />
+            <XTable title="Gangguan Terbaru" headers={['TANGGAL', 'ULTG', 'PENGHANTAR', 'JENIS', 'PENYEBAB']}
+              aligns={['left', 'left', 'left', 'left', 'left']}
+              rows={[...data.events].sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)).map((e) => [
+                e.date, e.ultg ?? '—', e.line.length > 26 ? `${e.line.slice(0, 26)}…` : e.line, e.type,
+                e.cause.length > 46 ? `${e.cause.slice(0, 46)}…` : e.cause,
               ])}
               maxRows={8} />
           </ExportSheet>

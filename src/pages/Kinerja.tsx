@@ -226,7 +226,8 @@ function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Da
             r.pct110 == null ? '—' : fmtNum(r.pct110, 2),
             fmtNum(r.nilai110, 2),
             r.status || '—',
-          ])} />
+          ])}
+          maxRows={16} />
         {m.merah.length > 0 && (
           <XNote>Kinerja merah: <b>{m.merah[0].indikator}</b> — {m.merah[0].penyebab} · Status: {m.merah[0].status}</XNote>
         )}

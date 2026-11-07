@@ -67,12 +67,12 @@ export default function Galeri() {
         { label: 'Bidang', value: String(perBidang.length), sub: 'terwakili', color: '#2E7D32' },
         { label: 'Bulan', value: curMonth ? (curMonth.name.match(/^\d{4}\.(\d{2})/)?.[1] ?? '—') : '—', sub: curMonth ? monthLabel(curMonth.name) : '', color: '#F57C00' },
       ]} />
-      <XSection title="Foto Pilihan" height={shown.slice(0, 8).length > 4 ? 330 : 215} right={shown.length > 8 ? `+${shown.length - 8} foto lainnya` : undefined}>
+      <XSection title="Foto Pilihan" height={shown.slice(0, 8).length > 4 ? 360 : 320} right={shown.length > 8 ? `+${shown.length - 8} foto lainnya` : undefined}>
         <div className="grid grid-cols-4 gap-2.5">
           {shown.slice(0, 8).map((ph) => (
             <div key={ph.id}>
               <img src={`https://lh3.googleusercontent.com/d/${ph.id}=w400`} crossOrigin="anonymous" alt={title(ph.name)}
-                className="w-full rounded-lg object-cover" style={{ height: 118 }} />
+                className="w-full rounded-lg object-cover" style={{ height: 200 }} />
               <div className="mt-1 text-[11px] font-semibold leading-tight" style={{ color: '#0b2340' }}>{(() => { const t = title(ph.name); return t.length > 44 ? `${t.slice(0, 44)}…` : t; })()}</div>
               <div className="text-[10px]" style={{ color: '#4b6585' }}>{cap(ph.bidang)}</div>
             </div>
