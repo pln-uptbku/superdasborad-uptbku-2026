@@ -71,7 +71,7 @@ function Body({ data }: { data: TegakanData }) {
   }, [rows]);
   return (
     <div className="space-y-5">
-      <PageHeader title={<><Term term="Tegakan">Tegakan</Term> (NS)</>} subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}
+      <PageHeader title={<><Term term="Tegakan">Tegakan</Term> <Term term="NS">(NS)</Term></>} subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}
         right={<Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'ringkasan', label: '📊 Ringkasan' }, { id: 'data', label: '📋 Data Tegakan' }, { id: 'tren', label: '📈 Tren Harian' }, { id: 'validasi', label: '🪓 Validasi Tegakan' }]} />} />
       {(tab === 'ringkasan' || tab === 'data') && (
         <Card>

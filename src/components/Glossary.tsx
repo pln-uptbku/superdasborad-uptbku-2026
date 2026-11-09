@@ -150,6 +150,12 @@ export const GLOSSARY: GlossaryEntry[] = [
     def: 'Mega Volt-Ampere — satuan daya semu transformator. Total kapasitas trafo daya UPT Bengkulu 2.475 MVA dari 34 unit.',
     source: 'Data UPT Bengkulu 2026',
   },
+  {
+    term: 'NS',
+    short: 'NEW SRINTAMI',
+    def: 'NEW SRINTAMI — sumber data tegakan; data halaman Tegakan ditarik dari sheet “TARIKAN NEW SRINTAMI”.',
+    source: 'Data UPT Bengkulu 2026',
+  },
 ];
 
 export function glossaryDef(term: string): GlossaryEntry | undefined {
