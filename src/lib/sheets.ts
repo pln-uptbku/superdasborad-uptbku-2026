@@ -7,6 +7,7 @@ export const SHEETS = {
   penebangan: '11W9Ozw_JMKq4_nezHlQ9l7aLxY0x-8wwaufzNZRtO-A',
   kerawanan: '1klVILSFsrBGMvkmj6y84QRk3ax69knShhdw-_0MsJ2Y',
   gangguan: '1HHv9iiUom0jxtqFcUtF79orS1s8j-x-sW3nxvOXAMaE',
+  rekapGangguan: '1LleZ7EW5DfmrHoUvsOyigSkCXUBbGQDNAuTwfQ2ajMQ',
 } as const;
 
 /** Fallback tab list (name → gid), used when tab discovery fails. Verified Oct 2026. */
@@ -30,6 +31,7 @@ export const FALLBACK_TABS: Record<string, { name: string; gid: string }[]> = {
   ],
   [SHEETS.kerawanan]: [{ name: 'SELURUH DATA', gid: '1392116848' }],
   [SHEETS.gangguan]: [{ name: 'UPTBKU', gid: '699810541' }],
+  [SHEETS.rekapGangguan]: [{ name: 'INPUT GGN PHT', gid: '1912142062' }],
 };
 
 export type Grid = string[][];
