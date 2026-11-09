@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Axe, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Gauge, LayoutDashboard, ShieldAlert } from 'lucide-react';
 import { usePageSources, useSource } from '../lib/data';
 import { fmtNum, MONTHS_LONG } from '../lib/sheets';
-import { C, Card } from '../components/ui';
+import { C, Card, StatCard } from '../components/ui';
 import { GlossarySection, Term } from '../components/Glossary';
 import { lowestProblem, statusCounts } from './Kinerja';
 
@@ -61,7 +61,7 @@ function HeroCarousel() {
     <div
       data-testid="hero-carousel"
       className="relative overflow-hidden rounded-xl"
-      style={{ background: 'rgba(4,20,43,0.55)', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'rgba(4,20,43,0.22)', border: '1px solid rgba(255,255,255,0.35)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => { setPaused(true); touchX.current = e.touches[0].clientX; }}
@@ -79,12 +79,12 @@ function HeroCarousel() {
         <div className="min-w-0 flex-1 px-3 py-2.5 sm:px-4">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-extrabold tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ background: '#FFD978', color: '#071426' }}>{slide.label}</span>
-            <span className="text-[12px] font-bold text-white">{slide.title}</span>
+            <span className="text-[12px] font-bold text-white" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>{slide.title}</span>
           </div>
           {slide.body ? (
-            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5">{slide.body}</p>
+            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>{slide.body}</p>
           ) : (
-            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5">
+            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>
               {slide.points?.map((p) => <li key={p} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
             </ul>
           )}
@@ -133,7 +133,7 @@ export default function Beranda() {
       {/* ---------- HERO (foto kantor UPT Bengkulu, hasil edit premium) ---------- */}
       <section aria-label="Pengantar" className="relative overflow-hidden rounded-2xl">
         <img src="/hero-kantor-upt.jpg" alt="Kantor PLN UPT Bengkulu" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.90) 0%, rgba(4,20,43,0.74) 46%, rgba(4,20,43,0.30) 78%, rgba(4,20,43,0.12) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.78) 0%, rgba(4,20,43,0.55) 46%, rgba(4,20,43,0.22) 78%, rgba(4,20,43,0.08) 100%)' }} />
         <div className="relative flex min-h-[420px] max-w-3xl flex-col justify-center gap-4 p-6 sm:p-10">
           <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978' }}>KINERJA PLN UPT BENGKULU</div>
           <h1 className="text-3xl sm:text-[42px] leading-[1.12] font-extrabold text-white">Monitoring Online Kinerja UPT Bengkulu</h1>
@@ -155,26 +155,32 @@ export default function Beranda() {
         </div>
       </section>
 
-      {/* ---------- STRIP IDENTITAS (angka dari SUPER PPT UPT Bengkulu; ikon
-          diekstrak dari slide "Sistem Tenaga Listrik" deck yang sama) ---------- */}
-      <section aria-label="UPT Bengkulu dalam angka" className="card">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 text-center">
+      {/* ---------- STRIP IDENTITAS (kartu model StatCard dashboard; angka
+          dari Data UPT Bengkulu 2026; ikon diekstrak dari deck profil UPT) ---------- */}
+      <section aria-label="UPT Bengkulu dalam angka">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: '/icon-gi.png', alt: 'Gardu induk', big: '15 Gardu Induk', sub: 'GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2' },
-            { icon: '/icon-pht.png', alt: 'Menara penghantar', big: '33 Sirkit PHT', sub: 'SUTT 70 kV 7 · SUTT 150 kV 22 · SUTET 275 kV 4 — 2.424 tower · 1.582,72 kms' },
-            { icon: '/icon-trafo.png', alt: 'Trafo daya', big: '2.475 MVA', sub: '34 unit trafo daya' },
-            { icon: '/icon-ultg.png', alt: 'Unit layanan transmisi', big: '2 ULTG', sub: 'Lahat & Pekalongan · UPT terbentuk 7 Nov 2008' },
+            { label: 'GARDU INDUK', value: '15', valueSub: 'Gardu Induk', sub: 'GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2', icon: '/icon-gi.png', alt: 'Gardu induk' },
+            { label: 'SIRKIT PHT', value: '33', valueSub: 'Sirkit PHT', sub: 'SUTT 70 kV 7 · SUTT 150 kV 22 · SUTET 275 kV 4 — 2.424 tower · 1.582,72 kms', icon: '/icon-pht.png', alt: 'Menara penghantar' },
+            { label: 'TRAFO DAYA', value: '2.475 MVA', valueSub: 'Trafo Daya', sub: '34 unit trafo daya', icon: '/icon-trafo.png', alt: 'Trafo daya' },
+            { label: 'ULTG', value: '2', valueSub: 'Unit Layanan Transmisi', sub: 'Lahat & Pekalongan', icon: '/icon-ultg.png', alt: 'Unit layanan transmisi' },
           ].map((a) => (
-            <div key={a.big}>
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full" style={{ background: '#fff', border: '1px solid var(--card-border)' }}>
-                <img src={a.icon} alt={a.alt} className="h-12 w-12 object-contain" />
-              </div>
-              <div className="text-lg font-extrabold mt-2" style={{ color: 'var(--heading)' }}>{a.big}</div>
-              <div className="text-[11px] t-muted">{a.sub}</div>
-            </div>
+            <StatCard
+              key={a.label}
+              label={a.label}
+              value={a.value}
+              valueSub={a.valueSub}
+              sub={a.sub}
+              color={C.blue}
+              icon={
+                <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #dcebff 55%, #bcd9ff 100%)', border: '1px solid rgba(0,114,206,0.45)', boxShadow: '0 10px 20px rgba(0,114,206,0.35), 0 2px 4px rgba(4,20,43,0.25), inset 0 2px 3px rgba(255,255,255,0.95), inset 0 -4px 7px rgba(0,114,206,0.22)' }}>
+                  <img src={a.icon} alt={a.alt} className="h-10 w-10 object-contain" style={{ filter: 'drop-shadow(0 4px 4px rgba(4,20,43,0.45))' }} />
+                </div>
+              }
+            />
           ))}
         </div>
-        <div className="text-center text-[10px] t-muted mt-3">Sumber: SUPER PPT UPT Bengkulu (profil resmi UPT).</div>
+        <div className="text-center text-[10px] t-muted mt-3">Data UPT Bengkulu 2026</div>
       </section>
 
       {/* ---------- CARA BACA 30 DETIK ---------- */}
@@ -234,7 +240,7 @@ export default function Beranda() {
               <li><b>Aset baru</b> — SUTT 150 kV Manna–Bintuhan dan SUTT 150 kV PLTU–Pulau Baai (belum masuk hitungan tower).</li>
               <li><b>Kantor</b> — Jl. Basuki Rahmat No. 47, Kel. Sukamerindu, Kec. Sungai Serut, Bengkulu 38119.</li>
             </ul>
-            <div className="text-[10px] t-muted mt-2">Sumber: SUPER PPT UPT Bengkulu · RJP UPT Bengkulu 2025–2029.</div>
+            <div className="text-[10px] t-muted mt-2">Sumber: Data UPT Bengkulu 2026 · RJP UPT Bengkulu 2025–2029.</div>
             <div className="h-section mt-4">Kinerja keandalan 2025</div>
             <p className="text-[13px] leading-relaxed mt-2"><Term term="TRAF">TRAF</Term> 99,85% (target minimum ≥98%) · <Term term="CCAF">CCAF</Term> 99,74% (target minimum ≥99%) · <Term term="TLOD & TLOF">TLOD</Term> 0,1221 jam/100 kms · <Term term="TLOD & TLOF">TLOF</Term> 0,3159 kali/100 kms. Gangguan penghantar s.d. November 2025: 43 kejadian — Petir 21 · Binatang 13 · NSF 5 · Pohon 3 · Human Error 1.</p>
             <div className="text-[10px] t-muted mt-2">Sumber: Profil Risiko UPTBKU 2026 · RJP UPT Bengkulu 2025–2029.</div>
