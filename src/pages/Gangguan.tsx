@@ -168,7 +168,7 @@ export function rekapCols(): Col<RekapGangguanRow>[] {
   ];
 }
 
-interface PerPht { penghantar: string; ultg: string; kejadian: number; trip: number; reclose: number; durasi: number; ens: number }
+interface PerPht { penghantar: string; ultg: string; kejadian: number; trip: number; reclose: number; durasi: number; ens: number; tower: string; towerCount: number }
 function perPhtCols(): Col<PerPht>[] {
   return [
     { key: 'penghantar', label: 'PENGHANTAR', value: (r) => r.penghantar, render: (r) => <b>{r.penghantar}</b>, className: 'min-w-[180px]' },
@@ -178,6 +178,7 @@ function perPhtCols(): Col<PerPht>[] {
     { key: 'reclose', label: 'RECLOSE', value: (r) => r.reclose },
     { key: 'durasi', label: 'DURASI (Jam)', value: (r) => r.durasi, render: (r) => fmtNum(r.durasi, 2) },
     { key: 'ens', label: 'ENS (MWh)', value: (r) => r.ens, render: (r) => fmtNum(r.ens, 2) },
+    { key: 'tower', label: 'NO. TOWER TEMUAN', value: (r) => r.towerCount, render: (r) => <span className="line-clamp-2 max-w-[280px] block">{r.tower || '—'}</span> },
   ];
 }
 
@@ -215,17 +216,32 @@ function SummaryBody({ data }: { data: RekapGangguanData }) {
   const perYear = uniq(srows.map((r) => r.tahun)).map((y) => ({ tahun: y, TRIP: srows.filter((r) => r.tahun === y && r.status === 'TRIP').length, RECLOSE: srows.filter((r) => r.tahun === y && r.status === 'RECLOSE').length }));
   const perPht = useMemo(() => {
     const m = new Map<string, PerPht>();
+    const towers = new Map<string, { nums: Set<number>; other: Set<string> }>();
     for (const r of srows) {
       const k = r.penghantar;
-      const cur = m.get(k) ?? { penghantar: k, ultg: r.ultg, kejadian: 0, trip: 0, reclose: 0, durasi: 0, ens: 0 };
+      const cur = m.get(k) ?? { penghantar: k, ultg: r.ultg, kejadian: 0, trip: 0, reclose: 0, durasi: 0, ens: 0, tower: '', towerCount: 0 };
       cur.kejadian += 1;
       if (r.status === 'TRIP') cur.trip += 1;
       if (r.status === 'RECLOSE') cur.reclose += 1;
       cur.durasi += r.durasi ?? 0;
       cur.ens += r.ens ?? 0;
       m.set(k, cur);
+      // NO. TOWER TEMUAN: gabung nomor tower unik dari semua kejadian penghantar ini
+      const tw = towers.get(k) ?? { nums: new Set<number>(), other: new Set<string>() };
+      for (const tok of r.towerTemuan.split(',')) {
+        const t = tok.trim();
+        if (!t) continue;
+        if (/^\d+$/.test(t)) tw.nums.add(+t);
+        else tw.other.add(t);
+      }
+      towers.set(k, tw);
     }
-    return [...m.values()].sort((a, b) => b.kejadian - a.kejadian || b.ens - a.ens);
+    return [...m.values()].map((p) => {
+      const tw = towers.get(p.penghantar)!;
+      const nums = [...tw.nums].sort((a, b) => a - b).map(String);
+      const tower = [...nums, ...[...tw.other].sort()].join(', ');
+      return { ...p, tower, towerCount: tw.nums.size + tw.other.size };
+    }).sort((a, b) => b.kejadian - a.kejadian || b.ens - a.ens);
   }, [srows]);
   const axis = { tick: { fill: t.axis, fontSize: 11 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
