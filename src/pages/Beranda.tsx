@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Axe, BookOpen, ChevronDown, Gauge, LayoutDashboard, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Axe, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Gauge, LayoutDashboard, ShieldAlert } from 'lucide-react';
 import { usePageSources, useSource } from '../lib/data';
 import { fmtNum, MONTHS_LONG } from '../lib/sheets';
 import { C, Card } from '../components/ui';
@@ -9,6 +9,100 @@ import { lowestProblem, statusCounts } from './Kinerja';
 
 /** Gulir halus ke sebuah seksi di halaman Beranda (memperhitungkan TopBar sticky). */
 const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+/** Slide carousel Visi / Misi / BISA di hero. Teks resmi dari RJP UPT Bengkulu
+    2025–2029 Bab I.2; poin misi dipadatkan ke satu baris singkat dengan wording
+    setia pada aslinya. Gambar memakai aset public/ yang sudah ada. */
+type HeroSlide = { label: string; img: string; alt: string; title: string; body?: string; points?: string[]; foot?: string };
+const HERO_SLIDES: HeroSlide[] = [
+  {
+    label: 'VISI', img: '/pdf/hdr-11.jpg', alt: 'Ilustrasi visi UPT Bengkulu', title: 'Visi UPT Bengkulu',
+    body: '“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”',
+  },
+  {
+    label: 'MISI', img: '/pdf/hdr-10.jpg', alt: 'Ilustrasi misi UPT Bengkulu', title: 'Misi UPT Bengkulu',
+    points: [
+      'Keandalan sistem transmisi — perencanaan, operasi, pemeliharaan, dan proteksi berbasis risiko.',
+      'Optimalisasi aset — asset management, condition-based & predictive maintenance.',
+      'Keselamatan & kepatuhan — K3, manajemen risiko, pengendalian internal, tata kelola.',
+      'Efisiensi & transformasi — digitalisasi, data akurat, inovasi, continuous improvement.',
+      'SDM & sinergi — SDM kompeten dan kolaboratif bersama ULTG, unit PLN, mitra, dan stakeholder.',
+    ],
+  },
+  {
+    label: 'BISA', img: '/pdf/hdr-12.jpg', alt: 'Ilustrasi tagline BISA UPT Bengkulu', title: 'Tagline “BISA” & Tata Nilai AKHLAK',
+    points: [
+      'Berakhlak — menjunjung nilai AKHLAK.',
+      'Inovatif — kreatif mengaplikasikan ide baru.',
+      'Sinergi — kolaboratif, bertindak cepat dan tepat.',
+      'Andal — menjaga keandalan sistem kelistrikan dengan K3 sebagai fondasi.',
+    ],
+    foot: 'AKHLAK: Amanah · Kompeten · Harmonis · Loyal · Adaptif · Kolaboratif',
+  },
+];
+
+/** Carousel geser (panah + dot + swipe sentuh + auto-advance 6 detik yang
+    berhenti saat disentuh / saat kursor di atasnya). Dibuat compact agar hero
+    tidak terlalu tinggi. */
+function HeroCarousel() {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const touchX = useRef<number | null>(null);
+  const n = HERO_SLIDES.length;
+  const go = (d: number) => setIdx((i) => (i + d + n) % n);
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % n), 6000);
+    return () => clearInterval(t);
+  }, [paused, n]);
+  const slide = HERO_SLIDES[idx];
+  return (
+    <div
+      data-testid="hero-carousel"
+      className="relative overflow-hidden rounded-xl"
+      style={{ background: 'rgba(4,20,43,0.55)', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(6px)' }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onTouchStart={(e) => { setPaused(true); touchX.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (touchX.current != null) {
+          const dx = e.changedTouches[0].clientX - touchX.current;
+          if (dx < -40) go(1);
+          else if (dx > 40) go(-1);
+        }
+        touchX.current = null;
+        setPaused(false);
+      }}
+    >
+      <div className="flex items-stretch">
+        <img src={slide.img} alt={slide.alt} className="w-[110px] sm:w-[150px] shrink-0 object-cover" />
+        <div className="min-w-0 flex-1 px-3 py-2.5 sm:px-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-extrabold tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ background: '#FFD978', color: '#071426' }}>{slide.label}</span>
+            <span className="text-[12px] font-bold text-white">{slide.title}</span>
+          </div>
+          {slide.body ? (
+            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5">{slide.body}</p>
+          ) : (
+            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5">
+              {slide.points?.map((p) => <li key={p} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
+            </ul>
+          )}
+          {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978' }}>{slide.foot}</div>}
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-2 pb-2">
+        <button type="button" aria-label="Slide sebelumnya" className="rounded-full p-1 text-white/80 hover:text-white hover:bg-white/10" onClick={() => go(-1)}><ChevronLeft size={15} /></button>
+        <div className="flex gap-1.5" role="tablist" aria-label="Pilih slide">
+          {HERO_SLIDES.map((s, i) => (
+            <button key={s.label} type="button" role="tab" aria-selected={i === idx} aria-label={`Ke slide ${s.label}`} onClick={() => setIdx(i)} className="h-1.5 rounded-full transition-all" style={{ width: i === idx ? 18 : 6, background: i === idx ? '#FFD978' : 'rgba(255,255,255,0.45)' }} />
+          ))}
+        </div>
+        <button type="button" aria-label="Slide berikutnya" className="rounded-full p-1 text-white/80 hover:text-white hover:bg-white/10" onClick={() => go(1)}><ChevronRight size={15} /></button>
+      </div>
+    </div>
+  );
+}
 
 export default function Beranda() {
   usePageSources(['nko', 'gangguan']);
@@ -42,8 +136,9 @@ export default function Beranda() {
         <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.90) 0%, rgba(4,20,43,0.74) 46%, rgba(4,20,43,0.30) 78%, rgba(4,20,43,0.12) 100%)' }} />
         <div className="relative flex min-h-[420px] max-w-3xl flex-col justify-center gap-4 p-6 sm:p-10">
           <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978' }}>KINERJA PLN UPT BENGKULU</div>
-          <h1 className="text-3xl sm:text-[42px] leading-[1.12] font-extrabold text-white">Melihat Kinerja Sistem Transmisi Secara Terbuka</h1>
+          <h1 className="text-3xl sm:text-[42px] leading-[1.12] font-extrabold text-white">Monitoring Online Kinerja UPT Bengkulu</h1>
           <p className="text-sm sm:text-[15px] leading-relaxed text-white/90 max-w-2xl">“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”</p>
+          <HeroCarousel />
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white">
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: '#00D26A', boxShadow: '0 0 8px #00D26A' }} />
             <span>
