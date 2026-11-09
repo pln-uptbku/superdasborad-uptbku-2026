@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { FALLBACK_TABS, fetchGrid, fetchGridRange, listTabs, SHEETS } from './sheets';
 import {
-  GangguanRow, KerawananRow, NkoMonth, PenebanganRow, TegakanRow, TrendSeries,
-  parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parseTegakan, parseTrend,
+  GangguanRow, KerawananRow, NkoMonth, PenebanganRow, RekapGangguanRow, TegakanRow, TrendSeries,
+  parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parseRekapGangguan, parseTegakan, parseTrend,
 } from './parsers';
 
 export interface NkoData { months: NkoMonth[] }
@@ -10,8 +10,9 @@ export interface TegakanData { rows: TegakanRow[]; headerTotal: number | null; t
 export interface PenebanganData { rows: PenebanganRow[] }
 export interface KerawananData { rows: KerawananRow[]; keys: string[] }
 export interface GangguanData { rows: GangguanRow[] }
+export interface RekapGangguanData { rows: RekapGangguanRow[] }
 
-type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData };
+type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData; rekapGangguan: RekapGangguanData };
 export type SourceKey = keyof Sources;
 export interface SourceState<T> { status: 'idle' | 'loading' | 'ok' | 'error'; data?: T; error?: string; updatedAt?: Date }
 
@@ -82,10 +83,16 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
     if (!t) throw new Error('Sheet "UPTBKU" tidak ditemukan');
     return { rows: parseGangguan(await fetchGrid(SHEETS.gangguan, t.gid)) };
   },
+  async rekapGangguan() {
+    const tabs = await listTabs(SHEETS.rekapGangguan);
+    const t = tabs.find((x) => /INPUT\s*GGN\s*PHT/i.test(x.name));
+    if (!t) throw new Error('Sheet "INPUT GGN PHT" tidak ditemukan');
+    return { rows: parseRekapGangguan(await fetchGrid(SHEETS.rekapGangguan, t.gid)) };
+  },
 };
 
 type State = { [K in SourceKey]: SourceState<Sources[K]> };
-const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' } };
+const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' }, rekapGangguan: { status: 'idle' } };
 
 interface Ctx { state: State; ensure: (k: SourceKey) => void; refresh: (keys?: SourceKey[]) => void }
 const DataCtx = createContext<Ctx | null>(null);

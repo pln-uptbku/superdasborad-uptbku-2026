@@ -365,3 +365,72 @@ export function parseGangguan(grid: Grid): GangguanRow[] {
   }
   return out;
 }
+
+/* ============================================================
+ * SUMMARY GANGGUAN — sheet "INPUT GGN PHT" (spreadsheet rekap gangguan)
+ * Header (baris ke-3): NO | UPT | TAHUN | BULAN | NO. BULAN | TANGGAL | MINGGU | ULTG |
+ * TEGANGAN (kV) | PENGHANTAR | SEGMEN | ASET | PENYEBAB | PENYEBAB DETIL | STATUS |
+ * KET STATUS | TGL GGN | JAM GGN | WAKTU SIAP OPERASI/DECLARE | TGL NORMAL | JAM NORMAL |
+ * DURASI (Jam) ×2 | TEMUAN | NO. TOWER TEMUAN | KODE KINERJA | ENS (MWh) |
+ * Jam Petir LDS | Analisa DFR | Temuan Lapangan | Evaluasi Kinerja DFR |
+ * KETERANGAN TAMBAHAN | line 1 | line 2 | LINK ANEV
+ * Tanggal format "1-Jan-20" (d-Mon-yy). Kolom DURASI ganda: kolom pertama
+ * adalah durasi total (jam) — cocok dengan selisih jam normal − jam gangguan
+ * di semua baris yang bisa dicek (mis. NO 323: 30,13 jam); kolom kedua hanya
+ * dipakai bila kolom pertama kosong/teks. Nilai "0:41" dibaca sebagai 41 menit.
+ * ============================================================ */
+export interface RekapGangguanRow {
+  key: number; no: string; tahun: string; bulan: string; noBulan: number | null;
+  tanggal: Date | null; tanggalRaw: string; minggu: string; ultg: string;
+  tegangan: string; teganganNum: number | null; penghantar: string; segmen: string; aset: string;
+  penyebab: string; penyebabDetil: string; status: string; ketStatus: string;
+  tglGgn: Date | null; jamGgn: string; tglNormal: Date | null; jamNormal: string;
+  durasi: number | null; temuan: string; towerTemuan: string; kodeKinerja: string; ens: number | null;
+  jamPetirLds: string; analisaDfr: string; temuanLapangan: string; evaluasiKinerja: string;
+  keterangan: string; linkAnev: string;
+}
+/** Durasi: angka jam ("0,317") atau format jam:menit ("0:41" → 0,68 jam). */
+function parseDurasi(v: string): number | null {
+  const s = v.trim();
+  if (!s) return null;
+  const m = s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);
+  if (m) return +m[1] + +m[2] / 60 + (+m[3] || 0) / 3600;
+  return num(s);
+}
+export function parseRekapGangguan(grid: Grid): RekapGangguanRow[] {
+  const hIdx = grid.findIndex((r) => cell(r, 0).toUpperCase() === 'NO' && r.some((c) => c.trim().toUpperCase() === 'PENGHANTAR'));
+  if (hIdx < 0) return [];
+  const H = (grid[hIdx] || []).map((c) => c.trim().toUpperCase().replace(/\s+/g, ' '));
+  const col = (name: string) => H.indexOf(name);
+  const durCols = H.map((h, i) => (h.startsWith('DURASI') ? i : -1)).filter((i) => i >= 0);
+  const C = {
+    no: 0, tahun: col('TAHUN'), bulan: col('BULAN'), noBulan: col('NO. BULAN'), tgl: col('TANGGAL'), minggu: col('MINGGU'),
+    ultg: col('ULTG'), teg: col('TEGANGAN (KV)'), pht: col('PENGHANTAR'), seg: col('SEGMEN'), aset: col('ASET'),
+    pen: col('PENYEBAB'), det: col('PENYEBAB DETIL'), st: col('STATUS'), ketSt: col('KET STATUS'),
+    tglGgn: col('TGL GGN'), jamGgn: col('JAM GGN'), tglNormal: col('TGL NORMAL'), jamNormal: col('JAM NORMAL'),
+    tem: col('TEMUAN'), tower: col('NO. TOWER TEMUAN'), kode: col('KODE KINERJA'), ens: col('ENS (MWH)'),
+    lds: col('JAM PETIR LDS'), dfr: col('ANALISA DFR'), lap: col('TEMUAN LAPANGAN'), ev: col('EVALUASI KINERJA DFR'),
+    ket: col('KETERANGAN TAMBAHAN'), link: col('LINK ANEV'),
+  };
+  const out: RekapGangguanRow[] = [];
+  for (let k = hIdx + 1; k < grid.length; k++) {
+    const r = grid[k];
+    if (!/^\d+$/.test(cell(r, C.no)) || !cell(r, C.pht)) continue;
+    const tanggalRaw = cell(r, C.tgl);
+    const durasi = durCols.length ? (parseDurasi(cell(r, durCols[0])) ?? (durCols.length > 1 ? parseDurasi(cell(r, durCols[durCols.length - 1])) : null)) : null;
+    out.push({
+      key: k, no: cell(r, C.no), tahun: cell(r, C.tahun), bulan: cell(r, C.bulan), noBulan: num(cell(r, C.noBulan)),
+      tanggal: parseDate(tanggalRaw, 'dmy'), tanggalRaw, minggu: cell(r, C.minggu),
+      ultg: cell(r, C.ultg).toUpperCase(), tegangan: cell(r, C.teg), teganganNum: num(cell(r, C.teg)),
+      penghantar: cell(r, C.pht).replace(/\s+/g, ' ').toUpperCase(), segmen: cell(r, C.seg).replace(/\s+/g, ' ').toUpperCase(),
+      aset: cell(r, C.aset).toUpperCase(), penyebab: cell(r, C.pen).toUpperCase() || '-', penyebabDetil: cell(r, C.det),
+      status: cell(r, C.st).toUpperCase() || '-', ketStatus: cell(r, C.ketSt),
+      tglGgn: parseDate(cell(r, C.tglGgn), 'dmy'), jamGgn: cell(r, C.jamGgn),
+      tglNormal: parseDate(cell(r, C.tglNormal), 'dmy'), jamNormal: cell(r, C.jamNormal),
+      durasi, temuan: cell(r, C.tem), towerTemuan: cell(r, C.tower), kodeKinerja: cell(r, C.kode).toUpperCase() || '-',
+      ens: num(cell(r, C.ens)), jamPetirLds: cell(r, C.lds), analisaDfr: cell(r, C.dfr), temuanLapangan: cell(r, C.lap),
+      evaluasiKinerja: cell(r, C.ev), keterangan: cell(r, C.ket), linkAnev: cell(r, C.link),
+    });
+  }
+  return out;
+}
