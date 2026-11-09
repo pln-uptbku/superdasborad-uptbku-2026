@@ -75,7 +75,7 @@ function HeroCarousel() {
     <div
       data-testid="hero-carousel"
       className="relative overflow-hidden rounded-xl"
-      style={{ background: 'rgba(4,20,43,0.22)', border: '1px solid rgba(255,255,255,0.35)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+      style={{ background: 'rgba(4,20,43,0.08)', border: '1px solid rgba(255,255,255,0.28)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => { setPaused(true); touchX.current = e.touches[0].clientX; }}
@@ -93,16 +93,16 @@ function HeroCarousel() {
         <div className="min-w-0 flex-1 px-3 py-2.5 sm:px-4">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-extrabold tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ background: '#FFD978', color: '#071426' }}>{slide.label}</span>
-            <span className="text-[12px] font-bold text-white" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>{slide.title}</span>
+            <span className="text-[12px] font-bold text-white" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.title}</span>
           </div>
           {slide.body ? (
-            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>{slide.body}</p>
+            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.body}</p>
           ) : (
-            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>
+            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>
               {slide.points?.map((p, i) => <li key={i} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
             </ul>
           )}
-          {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978' }}>{slide.foot}</div>}
+          {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978', textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.foot}</div>}
         </div>
       </div>
       <div className="flex items-center justify-between px-2 pb-2">
@@ -147,12 +147,12 @@ export default function Beranda() {
       {/* ---------- HERO (foto kantor UPT Bengkulu, hasil edit premium) ---------- */}
       <section aria-label="Pengantar" className="relative overflow-hidden rounded-2xl">
         <img src="/hero-kantor-upt.jpg" alt="Kantor PLN UPT Bengkulu" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.78) 0%, rgba(4,20,43,0.55) 46%, rgba(4,20,43,0.22) 78%, rgba(4,20,43,0.08) 100%)' }} />
-        <div className="relative flex min-h-[420px] max-w-3xl flex-col justify-center gap-4 p-6 sm:p-10">
-          <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978' }}>KINERJA PLN UPT BENGKULU</div>
-          <h1 className="text-3xl sm:text-[42px] leading-[1.12] font-extrabold text-white">Monitoring Online Kinerja UPT Bengkulu</h1>
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.58) 0%, rgba(4,20,43,0.40) 46%, rgba(4,20,43,0.12) 78%, rgba(4,20,43,0.04) 100%)' }} />
+        <div className="relative flex min-h-[420px] max-w-4xl flex-col justify-center gap-4 p-3 sm:p-10">
+          <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978', textShadow: '0 1px 6px rgba(4,20,43,0.9)' }}>KINERJA PLN UPT BENGKULU</div>
+          <h1 className="whitespace-nowrap text-[16px] sm:text-[26px] md:text-[32px] lg:text-[28px] xl:text-[40px] leading-[1.12] font-extrabold text-white" style={{ textShadow: '0 2px 10px rgba(4,20,43,0.85), 0 1px 3px rgba(4,20,43,0.7)' }}>Monitoring Online Kinerja UPT Bengkulu</h1>
           <HeroCarousel />
-          <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: '#00D26A', boxShadow: '0 0 8px #00D26A' }} />
             <span>
               {m ? <>Status {MONTHS_LONG[m.monthNo - 1]} {year}: <Term term="NKO">NKO</Term> {fmtNum(nkoVal, 2)} · {counts?.BAIK ?? 0} dari {totalInd} indikator BAIK</> : 'Memuat status kinerja…'}
@@ -165,7 +165,7 @@ export default function Beranda() {
             <button className="btn btn-primary" onClick={() => nav('/dashboard')}>Lihat Ringkasan Kinerja</button>
             <button className="btn" style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', borderColor: 'rgba(255,255,255,0.45)' }} onClick={() => { setShowGuide(true); scrollToId('cara-baca'); }}>Cara Membaca Dashboard</button>
           </div>
-          <div className="text-[11px] text-white/70">Foto: Kantor PLN UPT Bengkulu · Sumber data: Google Sheets (live) · Periode {m ? MONTHS_LONG[m.monthNo - 1] : '—'} {year}</div>
+          <div className="text-[11px] text-white/70" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9)' }}>Foto: Kantor PLN UPT Bengkulu · Sumber data: Google Sheets (live) · Periode {m ? MONTHS_LONG[m.monthNo - 1] : '—'} {year}</div>
         </div>
       </section>
 
