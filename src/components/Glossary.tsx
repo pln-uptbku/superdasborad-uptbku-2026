@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card } from './ui';
 
 /**
@@ -163,8 +164,11 @@ export function glossaryDef(term: string): GlossaryEntry | undefined {
 }
 
 /** Istilah bergaris titik — arahkan kursor (hover) atau ketuk/klik untuk
-    menampilkan definisinya (popover). Popover memakai position: fixed agar
-    tidak terpotong oleh kartu yang ber-overflow-hidden (mis. StatCard).
+    menampilkan definisinya (popover). Popover memakai position: fixed dan
+    di-portal ke document.body (ronde 8) agar tidak terpotong atau bergeser
+    oleh ancestor ber-backdrop-filter / overflow-hidden (mis. kartu carousel)
+    dan selalu tampil tepat pada istilah yang di-hover, di atas teks lain
+    (z-index 100).
     Catatan: popover yang dibuka lewat hover TIDAK memakai lapisan penangkap
     klik layar penuh — lapisan itu akan menutupi tombolnya sendiri dan membuat
     hover langsung tertutup lagi. Lapisan penangkap klik hanya dipakai saat
@@ -223,20 +227,23 @@ export function Term({ term, children }: { term: string; children?: React.ReactN
       >
         {children ?? entry.term}
       </button>
-      {open && (
+      {open && createPortal(
         <>
-          {openBy === 'click' && <span className="fixed inset-0 z-40" onClick={() => closePop()} aria-hidden="true" />}
+          {openBy === 'click' && <span className="fixed inset-0 z-[90]" onClick={() => closePop()} aria-hidden="true" />}
           <span
-            className="fixed z-50 w-[320px] max-w-[calc(100vw-16px)] rounded-xl p-3 text-left text-xs leading-relaxed"
+            className="fixed z-[100] w-[320px] max-w-[calc(100vw-16px)] rounded-xl p-3 text-left text-xs leading-relaxed"
             style={{ top: pos.top, bottom: pos.bottom, left: pos.left, background: 'var(--bg2)', border: '1px solid var(--card-border)', boxShadow: 'var(--card-shadow-hover)', color: 'var(--text)', textTransform: 'none', letterSpacing: 'normal' }}
             role="dialog"
             aria-label={`Definisi ${entry.term}`}
+            onMouseEnter={() => { if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; } }}
+            onMouseLeave={() => { if (openBy === 'hover') scheduleClose(); }}
           >
             <span className="block font-bold mb-1" style={{ color: 'var(--heading)' }}>{entry.term} — {entry.short}</span>
             <span className="block">{entry.def}</span>
             {entry.source && <span className="block mt-2 t-muted" style={{ fontSize: 10 }}>Sumber: {entry.source}</span>}
           </span>
-        </>
+        </>,
+        document.body,
       )}
     </span>
   );
@@ -249,7 +256,7 @@ export function GlossarySection() {
       <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
         <div>
           <h2 className="text-lg font-extrabold" style={{ color: 'var(--heading)' }}>Glosarium bahasa awam</h2>
-          <p className="text-xs t-muted mt-1">Istilah yang muncul di dashboard, dijelaskan tanpa jargon. Definisi bersumber dari dokumen resmi — label sumber ada di tiap kartu. Arahkan kursor (atau ketuk) pada istilah bergaris titik di mana pun untuk penjelasannya.</p>
+          <p className="text-xs t-muted text-justify mt-1">Istilah yang muncul di dashboard, dijelaskan tanpa jargon. Definisi bersumber dari dokumen resmi — label sumber ada di tiap kartu. Arahkan kursor (atau ketuk) pada istilah bergaris titik di mana pun untuk penjelasannya.</p>
         </div>
       </div>
       {/* flex-wrap + justify-center: baris terakhir yang tidak penuh (1–2 kartu)
@@ -259,7 +266,7 @@ export function GlossarySection() {
           <Card key={g.term} className="flex flex-col w-full sm:w-[calc(50%-8px)] xl:w-[calc(33.333%-10.67px)]">
             <div className="h-section">{g.term}</div>
             <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--accent)' }}>{g.short}</div>
-            <p className="text-[13px] leading-relaxed mt-2 flex-1">{g.def}</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2 flex-1">{g.def}</p>
             {g.source && <div className="text-[10px] t-muted mt-2">Sumber: {g.source}</div>}
           </Card>
         ))}

@@ -58,7 +58,9 @@ const HERO_SLIDES: HeroSlide[] = [
 
 /** Carousel geser (panah + dot + swipe sentuh + auto-advance 6 detik yang
     berhenti saat disentuh / saat kursor di atasnya). Dibuat compact agar hero
-    tidak terlalu tinggi. */
+    tidak terlalu tinggi. Background transparan penuh tanpa backdrop-blur
+    (ronde 8, atas permintaan user) agar foto kantor terlihat tajam —
+    keterbacaan teks putih dijaga lewat text-shadow. */
 function HeroCarousel() {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -75,7 +77,7 @@ function HeroCarousel() {
     <div
       data-testid="hero-carousel"
       className="relative overflow-hidden rounded-xl"
-      style={{ background: 'rgba(4,20,43,0.08)', border: '1px solid rgba(255,255,255,0.28)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.30)' }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => { setPaused(true); touchX.current = e.touches[0].clientX; }}
@@ -93,16 +95,16 @@ function HeroCarousel() {
         <div className="min-w-0 flex-1 px-3 py-2.5 sm:px-4">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-extrabold tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ background: '#FFD978', color: '#071426' }}>{slide.label}</span>
-            <span className="text-[12px] font-bold text-white" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.title}</span>
+            <span className="text-[12px] font-bold text-white" style={{ textShadow: '0 1px 8px rgba(4,20,43,0.95), 0 0 18px rgba(4,20,43,0.75), 0 0 3px rgba(4,20,43,0.9)' }}>{slide.title}</span>
           </div>
           {slide.body ? (
-            <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.body}</p>
+            <p className="text-[11px] sm:text-xs leading-relaxed text-justify text-white/90 mt-1.5" style={{ textShadow: '0 1px 8px rgba(4,20,43,0.95), 0 0 18px rgba(4,20,43,0.75), 0 0 3px rgba(4,20,43,0.9)' }}>{slide.body}</p>
           ) : (
-            <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>
+            <ul className="text-[11px] sm:text-xs leading-snug text-justify text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 8px rgba(4,20,43,0.95), 0 0 18px rgba(4,20,43,0.75), 0 0 3px rgba(4,20,43,0.9)' }}>
               {slide.points?.map((p, i) => <li key={i} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
             </ul>
           )}
-          {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978', textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>{slide.foot}</div>}
+          {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978', textShadow: '0 1px 8px rgba(4,20,43,0.95), 0 0 18px rgba(4,20,43,0.75), 0 0 3px rgba(4,20,43,0.9)' }}>{slide.foot}</div>}
         </div>
       </div>
       <div className="flex items-center justify-between px-2 pb-2">
@@ -147,12 +149,12 @@ export default function Beranda() {
       {/* ---------- HERO (foto kantor UPT Bengkulu, hasil edit premium) ---------- */}
       <section aria-label="Pengantar" className="relative overflow-hidden rounded-2xl">
         <img src="/hero-kantor-upt.jpg" alt="Kantor PLN UPT Bengkulu" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(4,20,43,0.58) 0%, rgba(4,20,43,0.40) 46%, rgba(4,20,43,0.12) 78%, rgba(4,20,43,0.04) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(4,20,43,0.55) 0%, rgba(4,20,43,0.30) 32%, rgba(4,20,43,0.08) 55%, rgba(4,20,43,0.02) 100%)' }} />
         <div className="relative flex min-h-[420px] max-w-4xl flex-col justify-center gap-4 p-3 sm:p-10">
           <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978', textShadow: '0 1px 6px rgba(4,20,43,0.9)' }}>KINERJA PLN UPT BENGKULU</div>
           <h1 className="whitespace-nowrap text-[16px] sm:text-[26px] md:text-[32px] lg:text-[28px] xl:text-[40px] leading-[1.12] font-extrabold text-white" style={{ textShadow: '0 2px 10px rgba(4,20,43,0.85), 0 1px 3px rgba(4,20,43,0.7)' }}>Monitoring Online Kinerja UPT Bengkulu</h1>
           <HeroCarousel />
-          <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white" style={{ textShadow: '0 1px 6px rgba(4,20,43,0.9), 0 0 14px rgba(4,20,43,0.6)' }}>
+          <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white" style={{ textShadow: '0 1px 8px rgba(4,20,43,0.95), 0 0 18px rgba(4,20,43,0.75), 0 0 3px rgba(4,20,43,0.9)' }}>
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: '#00D26A', boxShadow: '0 0 8px #00D26A' }} />
             <span>
               {m ? <>Status {MONTHS_LONG[m.monthNo - 1]} {year}: <Term term="NKO">NKO</Term> {fmtNum(nkoVal, 2)} · {counts?.BAIK ?? 0} dari {totalInd} indikator BAIK</> : 'Memuat status kinerja…'}
@@ -207,10 +209,10 @@ export default function Beranda() {
           </div>
           {showGuide && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-              <div><div className="t-label">1 · Ini dashboard apa?</div><p className="text-[13px] leading-relaxed mt-1">Ringkasan kinerja jaringan transmisi listrik PLN untuk wilayah Bengkulu — diperbarui dari data operasional setiap periode.</p></div>
-              <div><div className="t-label">2 · Lihat apa dulu?</div><p className="text-[13px] leading-relaxed mt-1">Mulai dari kartu angka utama di dashboard: skor <Term term="NKO">NKO</Term>, indikator BAIK, penebangan, dan tegakan kritis.</p></div>
-              <div><div className="t-label">3 · Artinya statusnya?</div><p className="text-[13px] leading-relaxed mt-1"><b style={{ color: C.ok }}>✓ BAIK</b> mencapai target. <b style={{ color: C.crit }}>! MASALAH</b> belum. Untuk tindak lanjut: <b style={{ color: C.crit }}>OPEN</b> merah = masih diproses, <b style={{ color: C.ok }}>CLOSE</b> hijau = selesai.</p></div>
-              <div><div className="t-label">4 · Mau lebih dalam?</div><p className="text-[13px] leading-relaxed mt-1">Klik istilah yang bergaris titik untuk penjelasannya, atau buka halaman detail dari menu di atas.</p></div>
+              <div><div className="t-label">1 · Ini dashboard apa?</div><p className="text-[13px] leading-relaxed text-justify mt-1">Ringkasan kinerja jaringan transmisi listrik PLN untuk wilayah Bengkulu — diperbarui dari data operasional setiap periode.</p></div>
+              <div><div className="t-label">2 · Lihat apa dulu?</div><p className="text-[13px] leading-relaxed text-justify mt-1">Mulai dari kartu angka utama di dashboard: skor <Term term="NKO">NKO</Term>, indikator BAIK, penebangan, dan tegakan kritis.</p></div>
+              <div><div className="t-label">3 · Artinya statusnya?</div><p className="text-[13px] leading-relaxed text-justify mt-1"><b style={{ color: C.ok }}>✓ BAIK</b> mencapai target. <b style={{ color: C.crit }}>! MASALAH</b> belum. Untuk tindak lanjut: <b style={{ color: C.crit }}>OPEN</b> merah = masih diproses, <b style={{ color: C.ok }}>CLOSE</b> hijau = selesai.</p></div>
+              <div><div className="t-label">4 · Mau lebih dalam?</div><p className="text-[13px] leading-relaxed text-justify mt-1">Klik istilah yang bergaris titik untuk penjelasannya, atau buka halaman detail dari menu di atas.</p></div>
             </div>
           )}
         </Card>
@@ -232,7 +234,7 @@ export default function Beranda() {
             <Card key={c.title} hover className="cursor-pointer" onClick={c.act}>
               <div style={{ color: c.color }}>{c.icon}</div>
               <div className="font-bold mt-2" style={{ color: 'var(--heading)' }}>{c.title}</div>
-              <p className="text-[13px] t-muted leading-relaxed mt-1">{c.desc}</p>
+              <p className="text-[13px] t-muted leading-relaxed text-justify mt-1">{c.desc}</p>
               <div className="text-[13px] font-bold mt-2" style={{ color: 'var(--accent)' }}>{c.cta}</div>
             </Card>
           ))}
@@ -247,8 +249,8 @@ export default function Beranda() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
           <Card>
             <div className="h-section">Siapa kami</div>
-            <p className="text-[13px] leading-relaxed mt-2"><Term term="UPT">UPT</Term> Bengkulu adalah Unit Pelaksana Transmisi PT PLN (Persero) di bawah <Term term="UIP3B">UIP3B</Term> Sumatera, yang mengelola aset dan sistem transmisi untuk wilayah Provinsi Bengkulu dan sebagian Sumatera Selatan, dengan unit lapangan <Term term="ULTG">ULTG</Term> Lahat dan <Term term="ULTG">ULTG</Term> Pekalongan.</p>
-            <ul className="text-[13px] leading-relaxed mt-2 space-y-1 list-disc pl-5">
+            <p className="text-[13px] leading-relaxed text-justify mt-2"><Term term="UPT">UPT</Term> Bengkulu adalah Unit Pelaksana Transmisi PT PLN (Persero) di bawah <Term term="UIP3B">UIP3B</Term> Sumatera, yang mengelola aset dan sistem transmisi untuk wilayah Provinsi Bengkulu dan sebagian Sumatera Selatan, dengan unit lapangan <Term term="ULTG">ULTG</Term> Lahat dan <Term term="ULTG">ULTG</Term> Pekalongan.</p>
+            <ul className="text-[13px] leading-relaxed text-justify mt-2 space-y-1 list-disc pl-5">
               <li><b>Terbentuk 7 November 2008</b> (SK Direksi 353.K/DIR/2008) — pemekaran wilayah kerja dari UP Palembang dan Tanjung Karang; beroperasi sejak Juli 2009.</li>
               <li><b>Wilayah kerja</b> — Provinsi Bengkulu dan sebagian Sumatera Selatan.</li>
               <li><b>Aset</b> — 15 Gardu Induk (<Term term="GI">GI</Term> 70 kV 3 · <Term term="GI">GI</Term> 150 kV 10 · <Term term="GITET">GITET</Term> 275 kV 2), 1 Switchyard 150 kV, 33 sirkit penghantar (2.424 tower · 1.582,72 kms), 34 unit trafo daya (2.475 <Term term="MVA">MVA</Term>).</li>
@@ -257,22 +259,22 @@ export default function Beranda() {
             </ul>
             <div className="text-[10px] t-muted mt-2">Sumber: Data UPT Bengkulu 2026 · RJP UPT Bengkulu 2025–2029.</div>
             <div className="h-section mt-4">Kinerja keandalan 2025</div>
-            <p className="text-[13px] leading-relaxed mt-2"><Term term="TRAF">TRAF</Term> 99,85% (target minimum ≥98%) · <Term term="CCAF">CCAF</Term> 99,74% (target minimum ≥99%) · <Term term="TLOD & TLOF">TLOD</Term> 0,1221 jam/100 kms · <Term term="TLOD & TLOF">TLOF</Term> 0,3159 kali/100 kms. Gangguan penghantar s.d. November 2025: 43 kejadian — Petir 21 · Binatang 13 · NSF 5 · Pohon 3 · Human Error 1.</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2"><Term term="TRAF">TRAF</Term> 99,85% (target minimum ≥98%) · <Term term="CCAF">CCAF</Term> 99,74% (target minimum ≥99%) · <Term term="TLOD & TLOF">TLOD</Term> 0,1221 jam/100 kms · <Term term="TLOD & TLOF">TLOF</Term> 0,3159 kali/100 kms. Gangguan penghantar s.d. November 2025: 43 kejadian — Petir 21 · Binatang 13 · NSF 5 · Pohon 3 · Human Error 1.</p>
             <div className="text-[10px] t-muted mt-2">Sumber: Profil Risiko UPTBKU 2026 · RJP UPT Bengkulu 2025–2029.</div>
           </Card>
           <Card>
             <div className="h-section">Visi &amp; Misi resmi</div>
-            <p className="text-[13px] leading-relaxed mt-2"><b>Visi UPT Bengkulu</b><br />“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”</p>
-            <p className="text-[13px] leading-relaxed mt-2"><b>Misi UPT Bengkulu</b></p>
-            <ol className="text-[13px] leading-relaxed mt-1 space-y-1 list-decimal pl-5">
+            <p className="text-[13px] leading-relaxed text-justify mt-2"><b>Visi UPT Bengkulu</b><br />“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2"><b>Misi UPT Bengkulu</b></p>
+            <ol className="text-[13px] leading-relaxed text-justify mt-1 space-y-1 list-decimal pl-5">
               <li>Menjamin keandalan sistem transmisi melalui perencanaan, pengoperasian, pemeliharaan, dan pengelolaan sistem proteksi yang efektif serta berbasis risiko.</li>
               <li>Mengoptimalkan pengelolaan aset transmisi melalui asset management, condition-based maintenance, predictive maintenance, dan pengelolaan siklus hidup aset.</li>
               <li>Meningkatkan keselamatan, keamanan, dan kepatuhan dengan <Term term="K3">K3</Term>, manajemen risiko, pengendalian internal, dan tata kelola perusahaan yang baik.</li>
               <li>Mendorong efisiensi dan transformasi proses bisnis melalui digitalisasi, data akurat, inovasi, dan continuous improvement.</li>
               <li>Mengembangkan <Term term="SDM">SDM</Term> yang kompeten dan kolaboratif serta memperkuat sinergi dengan ULTG, unit PLN, mitra kerja, dan stakeholder.</li>
             </ol>
-            <p className="text-[13px] leading-relaxed mt-2"><b>Visi PLN (korporat)</b><br />“Menjadi Perusahaan Global Top 500 dan #1 Pilihan Pelanggan untuk Solusi Energi.”</p>
-            <p className="text-[13px] leading-relaxed mt-2">Tagline <Term term="UPT">UPT</Term>: <b>“BISA”</b> — Berakhlak, Inovatif, Sinergi, Andal · Tata nilai: <b>AKHLAK</b> (Amanah, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif)</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2"><b>Visi PLN (korporat)</b><br />“Menjadi Perusahaan Global Top 500 dan #1 Pilihan Pelanggan untuk Solusi Energi.”</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2">Tagline <Term term="UPT">UPT</Term>: <b>“BISA”</b> — Berakhlak, Inovatif, Sinergi, Andal · Tata nilai: <b>AKHLAK</b> (Amanah, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif)</p>
             <div className="text-[10px] t-muted mt-2">Sumber: RJP UPT Bengkulu 2025–2029, Bab I.2 (Kepdir 0076.P/DIR/2020; visi korporat Kepdir 0319.K/DIR/2024).</div>
           </Card>
         </div>
@@ -288,7 +290,7 @@ export default function Beranda() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <div className="text-[11px] font-bold tracking-widest" style={{ color: '#FFD978' }}>PT PLN (PERSERO) — UPT BENGKULU</div>
-            <p className="text-[13px] leading-relaxed mt-2" style={{ color: 'rgba(234,246,255,0.85)' }}>Dashboard kinerja transmisi yang terbuka untuk publik: keandalan, keselamatan, dan lingkungan — dilaporkan apa adanya, termasuk yang belum mencapai target.</p>
+            <p className="text-[13px] leading-relaxed text-justify mt-2" style={{ color: 'rgba(234,246,255,0.85)' }}>Dashboard kinerja transmisi yang terbuka untuk publik: keandalan, keselamatan, dan lingkungan — dilaporkan apa adanya, termasuk yang belum mencapai target.</p>
             <p className="text-xs mt-3" style={{ color: '#FFD978' }}>Pahlawan energi untuk negeri</p>
           </div>
           <div>
