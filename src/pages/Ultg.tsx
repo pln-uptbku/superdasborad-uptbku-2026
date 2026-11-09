@@ -6,6 +6,7 @@ import { fetchGrid, listTabs, SHEETS } from '../lib/sheets';
 import { parseAset, parseRekap, Ultg as UltgName, UltgEvent } from '../lib/ultg';
 import { buildUltgPdf, PdfAssets, themeFor, UltgPdfPart } from '../lib/ultgPdf';
 import { Card, ErrorState, LIGHT_CHART_THEME, LoadingScreen, PageHeader } from '../components/ui';
+import { Term } from '../components/Glossary';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
@@ -50,7 +51,7 @@ function ThemeBanner({ onPdf, ready }: { onPdf: () => Promise<void>; ready: bool
         <div className="absolute inset-0 sm:hidden" style={{ background: 'linear-gradient(90deg, rgba(11,35,64,.92) 0%, rgba(11,35,64,.6) 60%, rgba(11,35,64,.1) 100%)' }} />
         <div className="relative p-5 sm:p-7 max-w-[560px]">
           <span className="inline-block rounded-lg px-3 py-1.5 text-xs sm:text-sm font-extrabold text-white" style={{ background: '#CE1126' }}>{th.badge.toUpperCase()}</span>
-          <h1 className="mt-3 text-3xl sm:text-5xl font-extrabold text-white">Kinerja ULTG</h1>
+          <h1 className="mt-3 text-3xl sm:text-5xl font-extrabold text-white">Kinerja <Term term="ULTG">ULTG</Term></h1>
           <div className="mt-2 text-base sm:text-lg font-semibold" style={{ color: '#FFC940' }}>{th.slogan}</div>
           <div className="text-xs sm:text-sm" style={{ color: '#DCE6F5' }}>{th.badgeSub}</div>
           {ready && <div className="mt-3 flex items-center gap-2"><PdfButton onClick={onPdf} /><span className="text-xs" style={{ color: '#E6ECF5' }}>Seluruh ULTG</span></div>}

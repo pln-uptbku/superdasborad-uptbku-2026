@@ -7,14 +7,28 @@ import { C, Card, StatCard } from '../components/ui';
 import { GlossarySection, Term } from '../components/Glossary';
 import { lowestProblem, statusCounts } from './Kinerja';
 
-/** Gulir halus ke sebuah seksi di halaman Beranda (memperhitungkan TopBar sticky). */
-const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+/** Gulir halus ke sebuah seksi di halaman Beranda (memperhitungkan TopBar sticky).
+    Pengaman (ronde 6): setelah animasi smooth, periksa apakah seksi benar-benar
+    mendarat di viewport; bila tidak (mis. scroll terinterupsi), coba sekali lagi
+    tanpa animasi. Diverifikasi di Playwright: klik kartu "Ke glosarium" dan
+    tombol footer "Glosarium" menggulir ke #glosarium di desktop + HP. */
+const scrollToId = (id: string) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  window.setTimeout(() => {
+    const r = document.getElementById(id)?.getBoundingClientRect();
+    if (r && (r.top < 56 || r.top > window.innerHeight * 0.6)) {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+  }, 900);
+};
 
 /** Slide carousel Visi / Misi / BISA di hero. Teks resmi dari RJP UPT Bengkulu
     2025–2029 Bab I.2; poin misi dipadatkan ke satu baris singkat dengan wording
     setia pada aslinya. Teks saja (tanpa gambar) — gambar dihapus atas permintaan
     user (ronde 4). */
-type HeroSlide = { label: string; title: string; body?: string; points?: string[]; foot?: string };
+type HeroSlide = { label: string; title: string; body?: string; points?: React.ReactNode[]; foot?: string };
 const HERO_SLIDES: HeroSlide[] = [
   {
     label: 'VISI', title: 'Visi UPT Bengkulu',
@@ -27,7 +41,7 @@ const HERO_SLIDES: HeroSlide[] = [
       'Optimalisasi aset — asset management, condition-based & predictive maintenance.',
       'Keselamatan & kepatuhan — K3, manajemen risiko, pengendalian internal, tata kelola.',
       'Efisiensi & transformasi — digitalisasi, data akurat, inovasi, continuous improvement.',
-      'SDM & sinergi — SDM kompeten dan kolaboratif bersama ULTG, unit PLN, mitra, dan stakeholder.',
+      <>SDM &amp; sinergi — <Term term="SDM">SDM</Term> kompeten dan kolaboratif bersama <Term term="ULTG">ULTG</Term>, unit PLN, mitra, dan stakeholder.</>,
     ],
   },
   {
@@ -85,7 +99,7 @@ function HeroCarousel() {
             <p className="text-[11px] sm:text-xs leading-relaxed text-white/90 mt-1.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>{slide.body}</p>
           ) : (
             <ul className="text-[11px] sm:text-xs leading-snug text-white/90 mt-1.5 space-y-0.5" style={{ textShadow: '0 1px 4px rgba(4,20,43,0.65)' }}>
-              {slide.points?.map((p) => <li key={p} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
+              {slide.points?.map((p, i) => <li key={i} className="flex gap-1.5"><span aria-hidden>•</span><span>{p}</span></li>)}
             </ul>
           )}
           {slide.foot && <div className="text-[10px] font-semibold mt-1.5" style={{ color: '#FFD978' }}>{slide.foot}</div>}
@@ -141,7 +155,7 @@ export default function Beranda() {
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white">
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: '#00D26A', boxShadow: '0 0 8px #00D26A' }} />
             <span>
-              {m ? <>Status {MONTHS_LONG[m.monthNo - 1]} {year}: NKO {fmtNum(nkoVal, 2)} · {counts?.BAIK ?? 0} dari {totalInd} indikator BAIK</> : 'Memuat status kinerja…'}
+              {m ? <>Status {MONTHS_LONG[m.monthNo - 1]} {year}: <Term term="NKO">NKO</Term> {fmtNum(nkoVal, 2)} · {counts?.BAIK ?? 0} dari {totalInd} indikator BAIK</> : 'Memuat status kinerja…'}
               {m && lowProb && <> · <Term term="ABOF">{lowProb.short}</Term> {lowProb.status} perlu perhatian</>}
               {m && !lowProb && <> · Semua indikator BAIK</>}
               {m && <> · {openUpt} gangguan OPEN</>}
@@ -160,18 +174,19 @@ export default function Beranda() {
       <section aria-label="UPT Bengkulu dalam angka">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'GARDU INDUK', value: '15', valueSub: 'Gardu Induk', sub: 'GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2', icon: '/icon-gi.png', alt: 'Gardu induk' },
-            { label: 'SIRKIT PHT', value: '33', valueSub: 'Sirkit PHT', sub: 'SUTT 70 kV 7 · SUTT 150 kV 22 · SUTET 275 kV 4 — 2.424 tower · 1.582,72 kms', icon: '/icon-pht.png', alt: 'Menara penghantar' },
-            { label: 'TRAFO DAYA', value: '2.475 MVA', valueSub: 'Trafo Daya', sub: '34 unit trafo daya', icon: '/icon-trafo.png', alt: 'Trafo daya' },
-            { label: 'ULTG', value: '2', valueSub: 'Unit Layanan Transmisi', sub: 'Lahat & Pekalongan', icon: '/icon-ultg.png', alt: 'Unit layanan transmisi' },
+            { id: 'gi', label: 'GARDU INDUK', value: '15', valueSub: 'Gardu Induk', sub: <><Term term="GI">GI</Term> 70 kV 3 · <Term term="GI">GI</Term> 150 kV 10 · <Term term="GITET">GITET</Term> 275 kV 2</>, icon: '/icon-gi.png', alt: 'Gardu induk' },
+            { id: 'pht', label: <>SIRKIT <Term term="PHT">PHT</Term></>, value: '33', valueSub: 'Sirkit PHT', sub: <><Term term="SUTT">SUTT</Term> 70 kV 7 · <Term term="SUTT">SUTT</Term> 150 kV 22 · <Term term="SUTET">SUTET</Term> 275 kV 4 — 2.424 tower · 1.582,72 kms</>, icon: '/icon-pht.png', alt: 'Menara penghantar' },
+            { id: 'trafo', label: 'TRAFO DAYA', value: <>2.475 <Term term="MVA">MVA</Term></>, valueSub: 'Trafo Daya', sub: '34 unit trafo daya', icon: '/icon-trafo.png', alt: 'Trafo daya' },
+            { id: 'ultg', label: <Term term="ULTG">ULTG</Term>, value: '2', valueSub: 'Unit Layanan Transmisi', sub: 'Lahat & Pekalongan', icon: '/icon-ultg.png', alt: 'Unit layanan transmisi' },
           ].map((a) => (
             <StatCard
-              key={a.label}
+              key={a.id}
               label={a.label}
               value={a.value}
               valueSub={a.valueSub}
               sub={a.sub}
               color={C.blue}
+              bgImage={a.icon}
               icon={
                 <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #dcebff 55%, #bcd9ff 100%)', border: '1px solid rgba(0,114,206,0.45)', boxShadow: '0 10px 20px rgba(0,114,206,0.35), 0 2px 4px rgba(4,20,43,0.25), inset 0 2px 3px rgba(255,255,255,0.95), inset 0 -4px 7px rgba(0,114,206,0.22)' }}>
                   <img src={a.icon} alt={a.alt} className="h-10 w-10 object-contain" style={{ filter: 'drop-shadow(0 4px 4px rgba(4,20,43,0.45))' }} />
@@ -211,8 +226,8 @@ export default function Beranda() {
             { icon: <ShieldAlert size={20} />, color: C.warn, title: 'Saya mau paham keselamatan kerja', desc: 'Bagaimana kinerja keselamatan petugas yang bekerja di jaringan tegangan tinggi.', cta: 'Ke ringkasan kinerja →', act: () => nav('/kinerja') },
             { icon: <Axe size={20} />, color: C.ok, title: 'Saya mau lihat kepedulian lingkungan', desc: 'Penebangan dan pemangkasan pohon di jalur transmisi agar jaringan aman dan andal.', cta: 'Ke penebangan →', act: () => nav('/penebangan') },
             { icon: <AlertTriangle size={20} />, color: C.crit, title: 'Saya mau tahu apa yang perlu diperhatikan', desc: 'Indikator yang bulan ini belum mencapai target, dan status tindak lanjutnya.', cta: 'Ke ringkasan kinerja →', act: () => nav('/kinerja') },
-            { icon: <BookOpen size={20} />, color: C.purple, title: 'Saya mau memahami sebuah istilah', desc: 'NKO, tegakan, re-close, FOIS — semua dijelaskan dengan bahasa sehari-hari.', cta: 'Ke glosarium →', act: () => scrollToId('glosarium') },
-            { icon: <LayoutDashboard size={20} />, color: C.cyan, title: 'Saya mau membuka dashboard lengkap', desc: 'Delapan halaman yang sudah berjalan: Beranda, Kinerja, Tegakan, Penebangan, Kerawanan, Gangguan, ULTG, dan Galeri Kegiatan.', cta: 'Buka dashboard live →', act: () => nav('/dashboard') },
+            { icon: <BookOpen size={20} />, color: C.purple, title: 'Saya mau memahami sebuah istilah', desc: <><Term term="NKO">NKO</Term>, <Term term="Tegakan">tegakan</Term>, <Term term="Re-close">re-close</Term>, <Term term="FOIS">FOIS</Term> — semua dijelaskan dengan bahasa sehari-hari.</>, cta: 'Ke glosarium →', act: () => scrollToId('glosarium') },
+            { icon: <LayoutDashboard size={20} />, color: C.cyan, title: 'Saya mau membuka dashboard lengkap', desc: <>Delapan halaman yang sudah berjalan: Beranda, Kinerja, <Term term="Tegakan">Tegakan</Term>, Penebangan, Kerawanan, Gangguan, <Term term="ULTG">ULTG</Term>, dan Galeri Kegiatan.</>, cta: 'Buka dashboard live →', act: () => nav('/dashboard') },
           ].map((c) => (
             <Card key={c.title} hover className="cursor-pointer" onClick={c.act}>
               <div style={{ color: c.color }}>{c.icon}</div>
@@ -232,12 +247,12 @@ export default function Beranda() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
           <Card>
             <div className="h-section">Siapa kami</div>
-            <p className="text-[13px] leading-relaxed mt-2">UPT Bengkulu adalah Unit Pelaksana Transmisi PT PLN (Persero) di bawah UIP3B Sumatera, yang mengelola aset dan sistem transmisi untuk wilayah Provinsi Bengkulu dan sebagian Sumatera Selatan, dengan unit lapangan <Term term="ULTG">ULTG</Term> Lahat dan <Term term="ULTG">ULTG</Term> Pekalongan.</p>
+            <p className="text-[13px] leading-relaxed mt-2"><Term term="UPT">UPT</Term> Bengkulu adalah Unit Pelaksana Transmisi PT PLN (Persero) di bawah <Term term="UIP3B">UIP3B</Term> Sumatera, yang mengelola aset dan sistem transmisi untuk wilayah Provinsi Bengkulu dan sebagian Sumatera Selatan, dengan unit lapangan <Term term="ULTG">ULTG</Term> Lahat dan <Term term="ULTG">ULTG</Term> Pekalongan.</p>
             <ul className="text-[13px] leading-relaxed mt-2 space-y-1 list-disc pl-5">
               <li><b>Terbentuk 7 November 2008</b> (SK Direksi 353.K/DIR/2008) — pemekaran wilayah kerja dari UP Palembang dan Tanjung Karang; beroperasi sejak Juli 2009.</li>
               <li><b>Wilayah kerja</b> — Provinsi Bengkulu dan sebagian Sumatera Selatan.</li>
-              <li><b>Aset</b> — 15 Gardu Induk (GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2), 1 Switchyard 150 kV, 33 sirkit penghantar (2.424 tower · 1.582,72 kms), 34 unit trafo daya (2.475 MVA).</li>
-              <li><b>Aset baru</b> — SUTT 150 kV Manna–Bintuhan dan SUTT 150 kV PLTU–Pulau Baai (belum masuk hitungan tower).</li>
+              <li><b>Aset</b> — 15 Gardu Induk (<Term term="GI">GI</Term> 70 kV 3 · <Term term="GI">GI</Term> 150 kV 10 · <Term term="GITET">GITET</Term> 275 kV 2), 1 Switchyard 150 kV, 33 sirkit penghantar (2.424 tower · 1.582,72 kms), 34 unit trafo daya (2.475 <Term term="MVA">MVA</Term>).</li>
+              <li><b>Aset baru</b> — <Term term="SUTT">SUTT</Term> 150 kV Manna–Bintuhan dan <Term term="SUTT">SUTT</Term> 150 kV PLTU–Pulau Baai (belum masuk hitungan tower).</li>
               <li><b>Kantor</b> — Jl. Basuki Rahmat No. 47, Kel. Sukamerindu, Kec. Sungai Serut, Bengkulu 38119.</li>
             </ul>
             <div className="text-[10px] t-muted mt-2">Sumber: Data UPT Bengkulu 2026 · RJP UPT Bengkulu 2025–2029.</div>
@@ -252,12 +267,12 @@ export default function Beranda() {
             <ol className="text-[13px] leading-relaxed mt-1 space-y-1 list-decimal pl-5">
               <li>Menjamin keandalan sistem transmisi melalui perencanaan, pengoperasian, pemeliharaan, dan pengelolaan sistem proteksi yang efektif serta berbasis risiko.</li>
               <li>Mengoptimalkan pengelolaan aset transmisi melalui asset management, condition-based maintenance, predictive maintenance, dan pengelolaan siklus hidup aset.</li>
-              <li>Meningkatkan keselamatan, keamanan, dan kepatuhan dengan K3, manajemen risiko, pengendalian internal, dan tata kelola perusahaan yang baik.</li>
+              <li>Meningkatkan keselamatan, keamanan, dan kepatuhan dengan <Term term="K3">K3</Term>, manajemen risiko, pengendalian internal, dan tata kelola perusahaan yang baik.</li>
               <li>Mendorong efisiensi dan transformasi proses bisnis melalui digitalisasi, data akurat, inovasi, dan continuous improvement.</li>
-              <li>Mengembangkan SDM yang kompeten dan kolaboratif serta memperkuat sinergi dengan ULTG, unit PLN, mitra kerja, dan stakeholder.</li>
+              <li>Mengembangkan <Term term="SDM">SDM</Term> yang kompeten dan kolaboratif serta memperkuat sinergi dengan ULTG, unit PLN, mitra kerja, dan stakeholder.</li>
             </ol>
             <p className="text-[13px] leading-relaxed mt-2"><b>Visi PLN (korporat)</b><br />“Menjadi Perusahaan Global Top 500 dan #1 Pilihan Pelanggan untuk Solusi Energi.”</p>
-            <p className="text-[13px] leading-relaxed mt-2">Tagline UPT: <b>“BISA”</b> — Berakhlak, Inovatif, Sinergi, Andal · Tata nilai: <b>AKHLAK</b> (Amanah, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif)</p>
+            <p className="text-[13px] leading-relaxed mt-2">Tagline <Term term="UPT">UPT</Term>: <b>“BISA”</b> — Berakhlak, Inovatif, Sinergi, Andal · Tata nilai: <b>AKHLAK</b> (Amanah, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif)</p>
             <div className="text-[10px] t-muted mt-2">Sumber: RJP UPT Bengkulu 2025–2029, Bab I.2 (Kepdir 0076.P/DIR/2020; visi korporat Kepdir 0319.K/DIR/2024).</div>
           </Card>
         </div>

@@ -6,6 +6,7 @@ import { GangguanRow } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, Modal, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie } from '../components/charts';
+import { Term } from '../components/Glossary';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export function gangguanCols(mode: 'all' | 'upt' | 'fois'): Col<GangguanRow>[] {
@@ -59,7 +60,7 @@ function Body({ data }: { data: GangguanData }) {
   const cols = gangguanCols(tab === 'overview' ? 'all' : tab);
   return (
     <div className="space-y-5">
-      <PageHeader title="Monitoring Pelaporan & Tindak Lanjut Gangguan" subtitle="Sheet UPTBKU · status CLOSE/OPEN UPT dan CLOSE/OPEN FOIS, termasuk target penutupan"
+      <PageHeader title="Monitoring Pelaporan & Tindak Lanjut Gangguan" subtitle={<>Sheet UPTBKU · status CLOSE/OPEN <Term term="UPT">UPT</Term> dan CLOSE/OPEN <Term term="FOIS">FOIS</Term>, termasuk target penutupan</>}
         right={<Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'overview', label: '📊 Overview' }, { id: 'upt', label: '🏢 CLOSE/OPEN UPT' }, { id: 'fois', label: '📁 CLOSE/OPEN FOIS' }]} />} />
       <Card className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Select label="Tahun" value={f.tahun} onChange={set('tahun')} options={['Semua', ...uniq(all.map((r) => r.tahun))]} />
@@ -70,14 +71,14 @@ function Body({ data }: { data: GangguanData }) {
       </Card>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Gangguan" value={fmtNum(rows.length)} color={C.cyan} icon={<Activity />} />
-        <StatCard label="OPEN UPT" value={fmtNum(openUpt.length)} color={C.warn} icon={<Building2 />} sub={`${fmtNum(rows.length - openUpt.length)} close`} />
-        <StatCard label="OPEN FOIS" value={fmtNum(openFois.length)} color={C.alert} icon={<FolderOpen />} />
+        <StatCard label={<>OPEN <Term term="UPT">UPT</Term></>} value={fmtNum(openUpt.length)} color={C.warn} icon={<Building2 />} sub={`${fmtNum(rows.length - openUpt.length)} close`} />
+        <StatCard label={<>OPEN <Term term="FOIS">FOIS</Term></>} value={fmtNum(openFois.length)} color={C.alert} icon={<FolderOpen />} />
         <StatCard label="Overdue" value={fmtNum(overdue.length)} color={C.crit} icon={<AlarmClock />} sub="target penutupan lewat, masih OPEN" />
       </div>
       {tab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-          <ChartCard title="1. Status UPT"><SimplePie data={groupSum(rows, (r) => r.statusUpt || '-')} colors={{ OPEN: C.crit, CLOSE: C.ok }} /></ChartCard>
-          <ChartCard title="2. Status FOIS"><SimplePie data={groupSum(rows, (r) => r.statusFois || '-')} colors={{ OPEN: C.crit, CLOSE: C.ok }} /></ChartCard>
+          <ChartCard title={<>1. Status <Term term="UPT">UPT</Term></>}><SimplePie data={groupSum(rows, (r) => r.statusUpt || '-')} colors={{ OPEN: C.crit, CLOSE: C.ok }} /></ChartCard>
+          <ChartCard title={<>2. Status <Term term="FOIS">FOIS</Term></>}><SimplePie data={groupSum(rows, (r) => r.statusFois || '-')} colors={{ OPEN: C.crit, CLOSE: C.ok }} /></ChartCard>
           <ChartCard title="3. Penyebab Gangguan">
             <ResponsiveContainer><BarChart data={groupSum(rows, (r) => r.penyebab)} layout="vertical" margin={{ left: 10, right: 10 }}><CartesianGrid stroke={t.grid} horizontal={false} /><XAxis type="number" {...axis} allowDecimals={false} /><YAxis type="category" dataKey="name" width={110} tick={{ fill: t.axis, fontSize: 10 }} /><Tooltip {...t.tooltip} formatter={(v: number) => [v, 'Kejadian']} /><Bar dataKey="value" fill={C.bar} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
           </ChartCard>

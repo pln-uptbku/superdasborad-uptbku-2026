@@ -71,8 +71,8 @@ export default function Home() {
     { key: 'lokasi', label: 'LOKASI GANGGUAN', value: (r) => r.lokasi, render: (r) => <b className="uppercase">{r.lokasi}</b>, className: 'min-w-[220px]' },
     { key: 'tanggal', label: 'TANGGAL', value: (r) => r.tanggal, render: (r) => fmtDate(r.tanggal) },
     { key: 'penyebab', label: 'PENYEBAB', value: (r) => r.penyebab },
-    { key: 'statusUpt', label: 'STATUS UPT', value: (r) => r.statusUpt, render: (r) => <Badge status={r.statusUpt} /> },
-    { key: 'statusFois', label: 'STATUS FOIS', value: (r) => r.statusFois, render: (r) => <Badge status={r.statusFois} /> },
+    { key: 'statusUpt', label: <>STATUS <Term term="UPT">UPT</Term></>, value: (r) => r.statusUpt, render: (r) => <Badge status={r.statusUpt} /> },
+    { key: 'statusFois', label: <>STATUS <Term term="FOIS">FOIS</Term></>, value: (r) => r.statusFois, render: (r) => <Badge status={r.statusFois} /> },
     { key: 'target', label: 'TARGET PENUTUPAN', value: (r) => r.target, render: (r) => <>{r.target ? fmtDate(r.target) : r.targetRaw || '—'}{(r.overdueUpt || r.overdueFois) && <span className="badge badge-crit ml-1">⚠ OVERDUE</span>}</> },
   ];
 
@@ -82,7 +82,7 @@ export default function Home() {
       <div id="ringkasan" className="space-y-5" style={{ scrollMarginTop: 76 }}>
       <PageHeader
         title="Dashboard Kinerja UPT Bengkulu"
-        subtitle={<>Ringkasan seluruh data · NKO bulan <span className="t-accent font-semibold">{m ? MONTHS_LONG[m.monthNo - 1] : '—'} {year}</span></>}
+        subtitle={<>Ringkasan seluruh data · <Term term="NKO">NKO</Term> bulan <span className="t-accent font-semibold">{m ? MONTHS_LONG[m.monthNo - 1] : '—'} {year}</span></>}
         right={months.length ? <MonthChips months={months} value={sel} onChange={setSel} /> : null}
       />
 
@@ -93,7 +93,7 @@ export default function Home() {
             sub={<><b style={{ color: C.warn }}>{openUpt} open</b> · <b style={{ color: C.crit }}>{overdue} overdue</b></>} badge={<span className="badge badge-info">Monitoring Gangguan →</span>} />
         )} />
         <MiniCard s={nko} render={() => (
-          <StatCard label={<><Term term="NKO">NKO</Term> Score (<Term term="cap 110%">cap 110%</Term>)</>} value={fmtNum(m?.total110 != null ? Math.min(110, m.total110) : null, 2)} color={(m?.total110 ?? 0) >= 100 ? C.ok : C.warn} icon={<Gauge />} onClick={() => nav('/kinerja')}
+          <StatCard label={<><Term term="NKO">NKO</Term> Score</>} labelSub={<>(<Term term="cap 110%">cap 110%</Term>)</>} value={fmtNum(m?.total110 != null ? Math.min(110, m.total110) : null, 2)} color={(m?.total110 ?? 0) >= 100 ? C.ok : C.warn} icon={<Gauge />} onClick={() => nav('/kinerja')}
             sub={<>cap 100%: {fmtNum(m?.total100, 2)} · {m ? MONTHS_SHORT[m.monthNo - 1] : ''}</>} badge={<span className="badge badge-info">Dashboard Kinerja →</span>} />
         )} />
         <MiniCard s={pen} render={() => { const p = penebanganYear(pen.data!.rows, year); return (
@@ -105,7 +105,7 @@ export default function Home() {
             sub={<>dari {fmtNum(sumJml(rows))} total tegakan</>} badge={<span className="badge badge-crit">{fmtNum((sumJml(rows, "KRITIS") / Math.max(1, sumJml(rows))) * 100, 2)}% kritis</span>} />
         ); }} />
         <MiniCard s={nko} render={() => { const low = m ? lowestProblem(m) : null; return (
-          <StatCard label="Kinerja Terendah" value={low ? low.short : 'Semua BAIK'} color={low ? (low.status === 'MASALAH' ? C.crit : C.warn) : C.ok} icon={<TrendingDown />} onClick={() => nav('/kinerja')}
+          <StatCard label="Kinerja Terendah" value={low ? <Term term={low.short}>{low.short}</Term> : 'Semua BAIK'} color={low ? (low.status === 'MASALAH' ? C.crit : C.warn) : C.ok} icon={<TrendingDown />} onClick={() => nav('/kinerja')}
             sub={low ? <>{low.no}. {low.name.slice(0, 48)} · {fmtNum(pctOf(low), 2)}%</> : 'Tidak ada indikator MASALAH / HATI-HATI'} badge={low ? <Badge status={low.status} /> : undefined} />
         ); }} />
       </div>
@@ -114,7 +114,7 @@ export default function Home() {
 
       {/* Charts — numbered, ordered left → right */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        <ChartCard title="1. Trend NKO Bulanan">
+        <ChartCard title={<>1. Trend <Term term="NKO">NKO</Term> Bulanan</>}>
           <Slot s={nko}>{() => (
             <ResponsiveContainer><AreaChart data={nkoTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
               <defs><linearGradient id="gNko" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.blue} stopOpacity={0.5} /><stop offset="1" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
@@ -126,16 +126,16 @@ export default function Home() {
             </AreaChart></ResponsiveContainer>
           )}</Slot>
         </ChartCard>
-        <ChartCard title="2. Data Tegakan per ULTG" right={<button className="text-[11px] t-accent" onClick={() => nav('/tegakan')}>Tegakan (NS) →</button>}>
+        <ChartCard title={<>2. Data <Term term="Tegakan">Tegakan</Term> per <Term term="ULTG">ULTG</Term></>} right={<button className="text-[11px] t-accent" onClick={() => nav('/tegakan')}>Tegakan (NS) →</button>}>
           <Slot s={teg}>{() => <TegakanUltgChart rows={teg.data!.rows} />}</Slot>
         </ChartCard>
-        <ChartCard title="3. Target Pencapaian NKO">
+        <ChartCard title={<>3. Target Pencapaian <Term term="NKO">NKO</Term></>}>
           <Slot s={nko}>{() => <GaugeDonut value={m?.total110 != null ? Math.min(110, m.total110) : null} label="NKO cap 110%" sub={`Target 100 · ${m ? MONTHS_SHORT[m.monthNo - 1] : ''}`} />}</Slot>
         </ChartCard>
-        <ChartCard title="4. Status KPI">
+        <ChartCard title={<>4. Status <Term term="KPI">KPI</Term></>}>
           <Slot s={nko}>{() => <SimplePie data={m ? Object.entries(statusCounts(m)).map(([name, value]) => ({ name, value })).filter((d) => d.value) : []} colors={{ BAIK: C.ok, MASALAH: C.crit, 'HATI-HATI': C.warn }} />}</Slot>
         </ChartCard>
-        <ChartCard title="5. Perbandingan NKO per Bulan">
+        <ChartCard title={<>5. Perbandingan <Term term="NKO">NKO</Term> per Bulan</>}>
           <Slot s={nko}>{() => (
             <ResponsiveContainer><BarChart data={nkoTrend} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
               <CartesianGrid stroke={t.grid} vertical={false} /><XAxis dataKey="bulan" tick={{ fill: t.axis, fontSize: 11 }} /><YAxis domain={[80, 110]} tick={{ fill: t.axis, fontSize: 11 }} />

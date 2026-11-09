@@ -6,6 +6,7 @@ import { PenebanganRow } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, PageHeader, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie } from '../components/charts';
+import { Term } from '../components/Glossary';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export const PEN_STATUS_COLORS: Record<string, string> = { KRITIS: C.crit, 'BAHAYA 1': C.alert, 'BAHAYA 2': C.warn, WASPADA: C.blue, AMAN: C.ok };
@@ -85,7 +86,7 @@ function Body({ data }: { data: PenebanganData }) {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Realisasi Penebangan" subtitle="Sumber: ULTG PEKALONGAN 2024-2026 & ULTG LAHAT 2024-2026"
+      <PageHeader title="Realisasi Penebangan" subtitle={<>Sumber: <Term term="ULTG">ULTG</Term> PEKALONGAN 2024-2026 & <Term term="ULTG">ULTG</Term> LAHAT 2024-2026</>}
         right={<Tabs<View> value={view} onChange={setView} tabs={[{ id: 'UPT', label: 'UPT Bengkulu' }, { id: 'PEKALONGAN', label: 'ULTG Pekalongan' }, { id: 'LAHAT', label: 'ULTG Lahat' }]} />} />
       <Card className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Select label="Tahun" value={year} onChange={setYear} options={['Semua', ...years]} />

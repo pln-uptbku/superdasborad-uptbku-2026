@@ -6,6 +6,7 @@ import { TegakanRow, TEG_STATUSES, TrendSeries } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Search, Select, SortableTable, StatCard, STATUS_COLORS, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
 import { SimplePie, TegakanUltgChart, TEG_LABEL } from '../components/charts';
+import { Term } from '../components/Glossary';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
 export const sumJml = (rows: TegakanRow[], status?: string) => rows.reduce((a, r) => a + (!status || r.status === status ? r.jml : 0), 0);
@@ -70,7 +71,7 @@ function Body({ data }: { data: TegakanData }) {
   }, [rows]);
   return (
     <div className="space-y-5">
-      <PageHeader title="Tegakan (NS)" subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}
+      <PageHeader title={<><Term term="Tegakan">Tegakan</Term> (NS)</>} subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}
         right={<Tabs<Tab> value={tab} onChange={setTab} tabs={[{ id: 'ringkasan', label: '📊 Ringkasan' }, { id: 'data', label: '📋 Data Tegakan' }, { id: 'tren', label: '📈 Tren Harian' }, { id: 'validasi', label: '🪓 Validasi Tegakan' }]} />} />
       {(tab === 'ringkasan' || tab === 'data') && (
         <Card>

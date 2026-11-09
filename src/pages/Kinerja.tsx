@@ -7,6 +7,7 @@ import { fmtAuto, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, Gate, PageHeader, Select, SortableTable, StatCard, useChartTheme } from '../components/ui';
 import { NkoBobotNilaiChart, SimplePie, pctColor } from '../components/charts';
 import AnalisaNko from '../components/AnalisaNko';
+import { Term } from '../components/Glossary';
 import { ExportSheet, XKpis, XNote, XTable } from '../lib/export';
 import { useLocation } from 'react-router-dom';
 
@@ -142,10 +143,10 @@ function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Da
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Dashboard Kinerja NKO" subtitle={<>Kinerja Operasional UPT Bengkulu — <span className="t-accent font-semibold">{m.label}</span> (tab {m.tab})</>} right={<MonthChips months={months} value={sel} onChange={setSel} />} />
+      <PageHeader title={<>Dashboard Kinerja <Term term="NKO">NKO</Term></>} subtitle={<>Kinerja Operasional UPT Bengkulu — <span className="t-accent font-semibold">{m.label}</span> (tab {m.tab})</>} right={<MonthChips months={months} value={sel} onChange={setSel} />} />
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard label="Total NKO (cap 100%)" value={fmtNum(m.total100, 2)} color={C.blue} icon={<Gauge />} sub="Nilai kinerja organisasi" />
-        <StatCard label="Total NKO (cap 110%)" value={fmtNum(m.total110 != null ? Math.min(110, m.total110) : null, 2)} color={pctColor(m.total110)} icon={<Gauge />} sub={(m.total110 ?? 0) >= 100 ? 'Di atas target' : 'Di bawah target'} />
+        <StatCard label={<>Total <Term term="NKO">NKO</Term></>} labelSub="(cap 100%)" value={fmtNum(m.total100, 2)} color={C.blue} icon={<Gauge />} sub="Nilai kinerja organisasi" />
+        <StatCard label={<>Total <Term term="NKO">NKO</Term></>} labelSub="(cap 110%)" value={fmtNum(m.total110 != null ? Math.min(110, m.total110) : null, 2)} color={pctColor(m.total110)} icon={<Gauge />} sub={(m.total110 ?? 0) >= 100 ? 'Di atas target' : 'Di bawah target'} />
         <StatCard label="BAIK" value={counts.BAIK} color={C.ok} icon={<CheckCircle2 />} sub="indikator" />
         <StatCard label="HATI-HATI" value={counts['HATI-HATI']} color={C.warn} icon={<AlertTriangle />} sub="indikator" />
         <StatCard label="MASALAH" value={counts.MASALAH} color={C.crit} icon={<XCircle />} sub="indikator" />
