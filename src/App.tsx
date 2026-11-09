@@ -1,11 +1,12 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { Activity, Axe, Gauge, Images, LayoutDashboard, Menu, Moon, RefreshCw, ShieldAlert, Sun, TreePine, Zap, X } from 'lucide-react';
+import { Activity, Axe, Gauge, Home as HomeIcon, Images, LayoutDashboard, Menu, Moon, RefreshCw, ShieldAlert, Sun, TreePine, Zap, X } from 'lucide-react';
 import { Analytics } from '@vercel/analytics/react';
 import { DataProvider, PageSourcesProvider, useData, usePageSourceKeys } from './lib/data';
 import { LoadingScreen, ThemeProvider, UptLogo, useTheme } from './components/ui';
 import { ExportMenu, ExportProvider } from './lib/export';
 // Setiap halaman dimuat terpisah (code splitting) supaya loading awal lebih ringan.
+const Beranda = lazy(() => import('./pages/Beranda'));
 const Home = lazy(() => import('./pages/Home'));
 const Kinerja = lazy(() => import('./pages/Kinerja'));
 const Tegakan = lazy(() => import('./pages/Tegakan'));
@@ -16,7 +17,8 @@ const Ultg = lazy(() => import('./pages/Ultg'));
 const Galeri = lazy(() => import('./pages/Galeri'));
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/', label: 'Beranda', icon: HomeIcon, end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/kinerja', label: 'Kinerja NKO', icon: Gauge },
   { to: '/tegakan', label: 'Tegakan (NS)', icon: TreePine },
   { to: '/penebangan', label: 'Realisasi Penebangan', icon: Axe },
@@ -121,7 +123,8 @@ function Shell() {
           <ScrollTop />
           <Suspense fallback={<LoadingScreen text="Membuka halaman…" />}>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Beranda />} />
+            <Route path="/dashboard" element={<Home />} />
             <Route path="/kinerja" element={<Kinerja />} />
             <Route path="/tegakan" element={<Tegakan />} />
             <Route path="/penebangan" element={<Penebangan />} />
@@ -129,7 +132,7 @@ function Shell() {
             <Route path="/gangguan" element={<Gangguan />} />
             <Route path="/ultg" element={<Ultg />} />
             <Route path="/galeri" element={<Galeri />} />
-            <Route path="*" element={<Home />} />
+            <Route path="*" element={<Beranda />} />
           </Routes>
           </Suspense>
           <footer className="text-center text-[11px] t-muted py-8">© {new Date().getFullYear()} PLN UPT Bengkulu · Dikembangkan oleh <a href="https://www.linkedin.com/in/febbyutomo/" target="_blank" rel="noopener noreferrer" className="hover:underline">Febby P. Utomo</a></footer>
