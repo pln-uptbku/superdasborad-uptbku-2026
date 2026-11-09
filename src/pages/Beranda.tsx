@@ -12,15 +12,16 @@ const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({
 
 /** Slide carousel Visi / Misi / BISA di hero. Teks resmi dari RJP UPT Bengkulu
     2025–2029 Bab I.2; poin misi dipadatkan ke satu baris singkat dengan wording
-    setia pada aslinya. Gambar memakai aset public/ yang sudah ada. */
-type HeroSlide = { label: string; img: string; alt: string; title: string; body?: string; points?: string[]; foot?: string };
+    setia pada aslinya. Teks saja (tanpa gambar) — gambar dihapus atas permintaan
+    user (ronde 4). */
+type HeroSlide = { label: string; title: string; body?: string; points?: string[]; foot?: string };
 const HERO_SLIDES: HeroSlide[] = [
   {
-    label: 'VISI', img: '/pdf/hdr-11.jpg', alt: 'Ilustrasi visi UPT Bengkulu', title: 'Visi UPT Bengkulu',
+    label: 'VISI', title: 'Visi UPT Bengkulu',
     body: '“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”',
   },
   {
-    label: 'MISI', img: '/pdf/hdr-10.jpg', alt: 'Ilustrasi misi UPT Bengkulu', title: 'Misi UPT Bengkulu',
+    label: 'MISI', title: 'Misi UPT Bengkulu',
     points: [
       'Keandalan sistem transmisi — perencanaan, operasi, pemeliharaan, dan proteksi berbasis risiko.',
       'Optimalisasi aset — asset management, condition-based & predictive maintenance.',
@@ -30,7 +31,7 @@ const HERO_SLIDES: HeroSlide[] = [
     ],
   },
   {
-    label: 'BISA', img: '/pdf/hdr-12.jpg', alt: 'Ilustrasi tagline BISA UPT Bengkulu', title: 'Tagline “BISA” & Tata Nilai AKHLAK',
+    label: 'BISA', title: 'Tagline “BISA” & Tata Nilai AKHLAK',
     points: [
       'Berakhlak — menjunjung nilai AKHLAK.',
       'Inovatif — kreatif mengaplikasikan ide baru.',
@@ -75,7 +76,6 @@ function HeroCarousel() {
       }}
     >
       <div className="flex items-stretch">
-        <img src={slide.img} alt={slide.alt} className="w-[110px] sm:w-[150px] shrink-0 object-cover" />
         <div className="min-w-0 flex-1 px-3 py-2.5 sm:px-4">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-extrabold tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ background: '#FFD978', color: '#071426' }}>{slide.label}</span>
@@ -137,7 +137,6 @@ export default function Beranda() {
         <div className="relative flex min-h-[420px] max-w-3xl flex-col justify-center gap-4 p-6 sm:p-10">
           <div className="text-[11px] font-bold tracking-[0.22em]" style={{ color: '#FFD978' }}>KINERJA PLN UPT BENGKULU</div>
           <h1 className="text-3xl sm:text-[42px] leading-[1.12] font-extrabold text-white">Monitoring Online Kinerja UPT Bengkulu</h1>
-          <p className="text-sm sm:text-[15px] leading-relaxed text-white/90 max-w-2xl">“Menjadi Unit Pelaksana Transmisi yang unggul dalam pengelolaan aset dan sistem transmisi yang andal, aman, efisien, dan berkelanjutan untuk mendukung kinerja PLN dan keandalan sistem kelistrikan Regional Sumatera.”</p>
           <HeroCarousel />
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-white">
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: '#00D26A', boxShadow: '0 0 8px #00D26A' }} />
@@ -156,15 +155,26 @@ export default function Beranda() {
         </div>
       </section>
 
-      {/* ---------- STRIP IDENTITAS ---------- */}
+      {/* ---------- STRIP IDENTITAS (angka dari SUPER PPT UPT Bengkulu; ikon
+          diekstrak dari slide "Sistem Tenaga Listrik" deck yang sama) ---------- */}
       <section aria-label="UPT Bengkulu dalam angka" className="card">
-        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-center">
-          <div><div className="text-lg font-extrabold" style={{ color: 'var(--heading)' }}>10 GI · 2 GITET</div><div className="text-[11px] t-muted">gardu induk &amp; GITET, + 1 Switchyard 150 kV</div></div>
-          <div><div className="text-lg font-extrabold" style={{ color: 'var(--heading)' }}>21 segmen PHT</div><div className="text-[11px] t-muted">penghantar di Bengkulu &amp; sebagian Sumsel</div></div>
-          <div><div className="text-lg font-extrabold" style={{ color: 'var(--heading)' }}>±2.475 MVA</div><div className="text-[11px] t-muted">total kapasitas transformator</div></div>
-          <div><div className="text-lg font-extrabold" style={{ color: 'var(--heading)' }}>2 ULTG</div><div className="text-[11px] t-muted">Lahat &amp; Pekalongan · UPT terbentuk 2008</div></div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 text-center">
+          {[
+            { icon: '/icon-gi.png', alt: 'Gardu induk', big: '15 Gardu Induk', sub: 'GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2' },
+            { icon: '/icon-pht.png', alt: 'Menara penghantar', big: '33 Sirkit PHT', sub: 'SUTT 70 kV 7 · SUTT 150 kV 22 · SUTET 275 kV 4 — 2.424 tower · 1.582,72 kms' },
+            { icon: '/icon-trafo.png', alt: 'Trafo daya', big: '2.475 MVA', sub: '34 unit trafo daya' },
+            { icon: '/icon-ultg.png', alt: 'Unit layanan transmisi', big: '2 ULTG', sub: 'Lahat & Pekalongan · UPT terbentuk 7 Nov 2008' },
+          ].map((a) => (
+            <div key={a.big}>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full" style={{ background: '#fff', border: '1px solid var(--card-border)' }}>
+                <img src={a.icon} alt={a.alt} className="h-12 w-12 object-contain" />
+              </div>
+              <div className="text-lg font-extrabold mt-2" style={{ color: 'var(--heading)' }}>{a.big}</div>
+              <div className="text-[11px] t-muted">{a.sub}</div>
+            </div>
+          ))}
         </div>
-        <div className="text-center text-[10px] t-muted mt-2">Sumber: RJP UPT Bengkulu 2025–2029.</div>
+        <div className="text-center text-[10px] t-muted mt-3">Sumber: SUPER PPT UPT Bengkulu (profil resmi UPT).</div>
       </section>
 
       {/* ---------- CARA BACA 30 DETIK ---------- */}
@@ -218,12 +228,13 @@ export default function Beranda() {
             <div className="h-section">Siapa kami</div>
             <p className="text-[13px] leading-relaxed mt-2">UPT Bengkulu adalah Unit Pelaksana Transmisi PT PLN (Persero) di bawah UIP3B Sumatera, yang mengelola aset dan sistem transmisi untuk wilayah Provinsi Bengkulu dan sebagian Sumatera Selatan, dengan unit lapangan <Term term="ULTG">ULTG</Term> Lahat dan <Term term="ULTG">ULTG</Term> Pekalongan.</p>
             <ul className="text-[13px] leading-relaxed mt-2 space-y-1 list-disc pl-5">
-              <li><b>Terbentuk 2008</b> — pemekaran wilayah kerja dari UP Palembang dan Tanjung Karang.</li>
+              <li><b>Terbentuk 7 November 2008</b> (SK Direksi 353.K/DIR/2008) — pemekaran wilayah kerja dari UP Palembang dan Tanjung Karang; beroperasi sejak Juli 2009.</li>
               <li><b>Wilayah kerja</b> — Provinsi Bengkulu dan sebagian Sumatera Selatan.</li>
-              <li><b>Aset</b> — 10 GI, 2 GITET, 1 Switchyard 150 kV, 21 segmen penghantar.</li>
-              <li><b>Aset baru</b> — GI 150 kV Bintuhan dan SUTT 150 kV Manna–Bintuhan.</li>
+              <li><b>Aset</b> — 15 Gardu Induk (GI 70 kV 3 · GI 150 kV 10 · GITET 275 kV 2), 1 Switchyard 150 kV, 33 sirkit penghantar (2.424 tower · 1.582,72 kms), 34 unit trafo daya (2.475 MVA).</li>
+              <li><b>Aset baru</b> — SUTT 150 kV Manna–Bintuhan dan SUTT 150 kV PLTU–Pulau Baai (belum masuk hitungan tower).</li>
+              <li><b>Kantor</b> — Jl. Basuki Rahmat No. 47, Kel. Sukamerindu, Kec. Sungai Serut, Bengkulu 38119.</li>
             </ul>
-            <div className="text-[10px] t-muted mt-2">Sumber: RJP UPT Bengkulu 2025–2029.</div>
+            <div className="text-[10px] t-muted mt-2">Sumber: SUPER PPT UPT Bengkulu · RJP UPT Bengkulu 2025–2029.</div>
             <div className="h-section mt-4">Kinerja keandalan 2025</div>
             <p className="text-[13px] leading-relaxed mt-2"><Term term="TRAF">TRAF</Term> 99,85% (target minimum ≥98%) · <Term term="CCAF">CCAF</Term> 99,74% (target minimum ≥99%) · <Term term="TLOD & TLOF">TLOD</Term> 0,1221 jam/100 kms · <Term term="TLOD & TLOF">TLOF</Term> 0,3159 kali/100 kms. Gangguan penghantar s.d. November 2025: 43 kejadian — Petir 21 · Binatang 13 · NSF 5 · Pohon 3 · Human Error 1.</p>
             <div className="text-[10px] t-muted mt-2">Sumber: Profil Risiko UPTBKU 2026 · RJP UPT Bengkulu 2025–2029.</div>
@@ -281,7 +292,7 @@ export default function Beranda() {
             <div className="text-[13px] leading-relaxed mt-2" style={{ color: 'rgba(234,246,255,0.85)' }}>
               <div>Sumber data: Google Sheets (live)</div>
               <div>Periode berjalan: {m ? MONTHS_LONG[m.monthNo - 1] : '—'} {year}</div>
-              <div>Kontak publik: <span className="italic">menunggu konfirmasi resmi</span></div>
+              <div>Alamat kantor: Jl. Basuki Rahmat No. 47, Kel. Sukamerindu, Kec. Sungai Serut, Bengkulu 38119</div>
               <div><a className="hover:underline" href="https://www.pln.co.id" target="_blank" rel="noopener noreferrer">pln.co.id</a> · <a className="hover:underline" href="https://plnuptbengkulu.web.id" target="_blank" rel="noopener noreferrer">plnuptbengkulu.web.id</a></div>
             </div>
           </div>
