@@ -259,14 +259,50 @@ export function SortableTable<T>({ rows, cols, pageSize = 0, onRowClick, rowClas
   );
 }
 
-/* ---------- PDF export of filtered data ---------- */
+/* ---------- PDF export of filtered data (format poster: header + logo) ---------- */
+async function loadLogo(src: string): Promise<string | null> {
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const dataUrl: string = await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => resolve('');
+      r.readAsDataURL(blob);
+    });
+    return dataUrl || null;
+  } catch { return null; }
+}
+
 export async function exportPdf<T>(title: string, subtitle: string, cols: Col<T>[], rows: T[]) {
   const [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const autoTable = (autoTableMod as any).default ?? (autoTableMod as any).autoTable;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-  doc.setFontSize(14); doc.setTextColor(0, 114, 206); doc.text(title, 40, 40);
-  doc.setFontSize(9); doc.setTextColor(80); doc.text(subtitle, 40, 56);
-  doc.text(`PT PLN (Persero) UPT Bengkulu · dicetak ${new Date().toLocaleString('id-ID')} · ${rows.length} baris`, 40, 70);
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const stamp = new Date().toLocaleString('id-ID');
+  const [danantara, upt, pln] = await Promise.all([loadLogo('/pdf/danantara.png'), loadLogo('/pdf/upt.png'), loadLogo('/pdf/pln.png')]);
+  // Header gaya poster: pita navy + garis emas + logo Danantara/UPT/PLN di pelat putih.
+  const drawHeader = () => {
+    doc.setFillColor(11, 35, 64); doc.rect(0, 0, W, 58, 'F');
+    doc.setFillColor(255, 201, 64); doc.rect(0, 58, W, 3, 'F');
+    let right = W - 30;
+    const place = (img: string | null, w: number) => {
+      if (!img) return;
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(right - w - 8, 8, w + 8, 42, 4, 4, 'F');
+      doc.addImage(img, 'PNG', right - w - 4, 12, w, 34);
+      right -= w + 16;
+    };
+    place(pln, 23);
+    place(upt, 27);
+    place(danantara, 136);
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text(title, 40, 26);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(200, 210, 225);
+    doc.text(subtitle, 40, 43);
+  };
   const val = (c: Col<T>, r: T) => {
     const v = c.value ? c.value(r) : (r as any)[c.key];
     if (v instanceof Date) return v.toLocaleDateString('id-ID');
@@ -274,14 +310,22 @@ export async function exportPdf<T>(title: string, subtitle: string, cols: Col<T>
     return v == null ? '' : String(v);
   };
   autoTable(doc, {
-    startY: 82,
+    startY: 76,
     head: [cols.map((c) => (typeof c.label === 'string' ? c.label : c.key).toUpperCase())],
     body: rows.map((r) => cols.map((c) => val(c, r))),
     styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [7, 20, 38], textColor: [255, 201, 64] },
     alternateRowStyles: { fillColor: [240, 246, 252] },
-    margin: { left: 30, right: 30 },
+    margin: { left: 30, right: 30, top: 76, bottom: 30 },
+    didDrawPage: () => drawHeader(),
   });
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('PT PLN (Persero) UPT Bengkulu · plnuptbengkulu.web.id', 30, H - 16);
+    doc.text(`dicetak ${stamp} · ${rows.length} baris · halaman ${i} dari ${n}`, W - 30, H - 16, { align: 'right' });
+  }
   doc.save(`${title.replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 export function ExportButton<T>({ title, subtitle, cols, rows }: { title: string; subtitle: string; cols: Col<T>[]; rows: T[] }) {

@@ -114,6 +114,7 @@ function Body({ data }: { data: GangguanData }) {
         </Card>
       )}
       {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
+      {tab !== 'summary' && (
       <ExportSheet meta={{ title: 'Monitoring Gangguan', subtitle: `Tahun ${f.tahun} · Penyebab ${f.penyebab} · UPT ${f.upt} · FOIS ${f.fois}`, fileBase: 'Monitoring_Gangguan' }}>
         <XKpis items={[
           { label: 'Total Gangguan', value: fmtNum(rows.length), sub: 'terfilter', color: C.cyan },
@@ -128,6 +129,7 @@ function Body({ data }: { data: GangguanData }) {
           rows={[...openUpt].sort((a, b) => Number(b.overdueUpt || b.overdueFois) - Number(a.overdueUpt || a.overdueFois)).map((r) => [r.lokasi, fmtDate(r.tanggal), r.penyebab, r.statusUpt, r.target ? fmtDate(r.target) : r.targetRaw || '—'])}
           maxRows={18} />
       </ExportSheet>
+      )}
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.lokasi} — ${fmtDate(detail.tanggal)} ${detail.jam}` : ''}>
         {detail && (
           <div className="space-y-3 text-sm">
@@ -164,6 +166,7 @@ export function rekapCols(): Col<RekapGangguanRow>[] {
     { key: 'status', label: 'STATUS', value: (r) => r.status, render: (r) => <Badge status={r.status} /> },
     { key: 'durasi', label: 'DURASI (Jam)', value: (r) => r.durasi, render: (r) => (r.durasi != null ? fmtNum(r.durasi, 2) : '—') },
     { key: 'ens', label: 'ENS (MWh)', value: (r) => r.ens, render: (r) => (r.ens != null ? fmtNum(r.ens, 2) : '—') },
+    { key: 'tower', label: 'NO. TOWER TEMUAN', value: (r) => r.towerTemuan, render: (r) => <span className="line-clamp-2 max-w-[220px] block">{r.towerTemuan || '—'}</span> },
     { key: 'kode', label: 'KODE KINERJA', value: (r) => r.kodeKinerja },
   ];
 }
@@ -189,6 +192,13 @@ function SummaryTab() {
   if (s.status !== 'ok' || !s.data) return <LoadingScreen text="Memuat Summary Gangguan…" />;
   return <SummaryBody data={s.data} />;
 }
+
+/** Daftar tower dipersingkat untuk lembar poster: 6 nomor pertama + sisa sebagai +N. */
+const towerShort = (tower: string, count: number) => {
+  if (!tower) return '—';
+  const parts = tower.split(', ');
+  return parts.length <= 6 ? tower : `${parts.slice(0, 6).join(', ')} +${count - 6}`;
+};
 
 function SummaryBody({ data }: { data: RekapGangguanData }) {
   const t = useChartTheme();
@@ -331,6 +341,22 @@ function SummaryBody({ data }: { data: RekapGangguanData }) {
           </div>
         )}
       </Modal>
+      {/* Export TopBar (tombol Export di atas): lembar ringkasan 1 halaman gaya poster — header + logo. */}
+      <ExportSheet meta={{ title: 'Summary Gangguan', subtitle: filterSub, fileBase: 'Summary_Gangguan' }}>
+        <XKpis items={[
+          { label: 'Total Kejadian', value: fmtNum(srows.length), sub: `${fmtNum(all.length)} semua tahun`, color: C.cyan },
+          { label: 'Trip', value: fmtNum(trip.length), sub: `${srows.length ? fmtNum((trip.length / srows.length) * 100, 1) : '0'}% dari terfilter`, color: C.crit },
+          { label: 'Reclose', value: fmtNum(reclose.length), sub: `${srows.length ? fmtNum((reclose.length / srows.length) * 100, 1) : '0'}% dari terfilter`, color: C.ok },
+          { label: 'Total Durasi', value: fmtNum(totDurasi, 2), sub: 'jam (yang tercatat)', color: C.warn },
+          { label: 'Total ENS', value: fmtNum(totEns, 1), sub: 'MWh (yang tercatat)', color: C.alert },
+        ]} />
+        <XSection title="Penyebab Gangguan" height={170}>
+          <ResponsiveContainer><BarChart data={groupSum(srows, (r) => r.penyebab).slice(0, 8)} layout="vertical" margin={{ left: 10, right: 16 }}><CartesianGrid stroke={LIGHT_CHART_THEME.grid} horizontal={false} /><XAxis type="number" tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} allowDecimals={false} /><YAxis type="category" dataKey="name" width={110} tick={{ fill: LIGHT_CHART_THEME.axis, fontSize: 10 }} /><Tooltip {...LIGHT_CHART_THEME.tooltip} formatter={(v: number) => [v, 'Kejadian']} /><Bar dataKey="value" fill={C.bar} radius={[0, 6, 6, 0]} /></BarChart></ResponsiveContainer>
+        </XSection>
+        <XTable title={`Rekap per Penghantar — ${perPht.length} penghantar`} headers={['PENGHANTAR', 'ULTG', 'KEJADIAN', 'TRIP', 'RECLOSE', 'DURASI', 'ENS', 'TOWER']}
+          rows={perPht.slice(0, 10).map((p) => [p.penghantar, p.ultg, fmtNum(p.kejadian), fmtNum(p.trip), fmtNum(p.reclose), fmtNum(p.durasi, 2), fmtNum(p.ens, 2), towerShort(p.tower, p.towerCount)])}
+          maxRows={10} compact widths={['24%', '8%', '9%', '7%', '9%', '10%', '10%', '23%']} />
+      </ExportSheet>
     </div>
   );
 }
