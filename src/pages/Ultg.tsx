@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, FileDown, Loader2, Zap } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePageSources, useSource } from '../lib/data';
@@ -218,13 +218,32 @@ export default function Ultg() {
   const [err, setErr] = useState('');
   const [reload, setReload] = useState(0);
 
+  // Sinyal refresh global: tombol "Refresh Data" (TopBar) memuat ulang
+  // sumber nko lewat DataProvider, sehingga nkoSrc.updatedAt berubah —
+  // tapi daftar gangguan di halaman ini dimuat oleh effect lokal di bawah,
+  // yang tidak bergantung pada sumber itu. Tanpa sinyal ini, klik Refresh
+  // tidak memuat ulang daftar gangguan (bug: jam "Update data:" berubah,
+  // daftar tetap lama). Abaikan perubahan updatedAt PERTAMA (pemuatan awal
+  // nko saat mount) supaya mount tidak fetch ganda; refresh berikutnya
+  // (updatedAt berubah lagi) menaikkan tick dan effect jalan ulang.
+  const [nkoTick, setNkoTick] = useState(0);
+  const nkoFirst = useRef(true);
+  const nkoSeen = useRef<Date | undefined>(undefined);
+  useEffect(() => {
+    const at = nkoSrc.updatedAt;
+    if (!at || nkoSeen.current === at) return;
+    nkoSeen.current = at;
+    if (nkoFirst.current) { nkoFirst.current = false; return; }
+    setNkoTick((t) => t + 1);
+  }, [nkoSrc.updatedAt]);
+
   useEffect(() => {
     listTabs(SHEETS.nko).then((all) => {
       const t = all.map((x) => ({ ...x, no: Number((x.name.match(/^(\d{1,2})\./) || [])[1]) }))
         .filter((x) => x.no >= 1 && x.no <= 12).sort((a, b) => a.no - b.no);
-      setTabs(t); if (t.length) setSel(t[t.length - 1].no);
+      setTabs(t); if (t.length) setSel((cur) => cur || t[t.length - 1].no);
     }).catch((e) => setErr(String(e)));
-  }, [reload]);
+  }, [reload, nkoTick]);
 
   useEffect(() => {
     if (!tabs || !sel) return;
@@ -237,7 +256,7 @@ export default function Ultg() {
       const r = parseRekap(g, map);
       setData({ ...r, unmapped: r.events.filter((e) => !e.ultg) });
     }).catch((e) => setErr(String(e.message || e)));
-  }, [tabs, sel, reload]);
+  }, [tabs, sel, reload, nkoTick]);
 
   const bulan = LONG[sel - 1] ?? '';
   const parts: UltgPdfPart[] = data ? (['PEKALONGAN', 'LAHAT'] as UltgName[]).map((u) => ({ name: u, events: data.events.filter((e) => e.ultg === u), kinerja: data.kinerja.filter((e) => e.ultg === u) })) : [];
