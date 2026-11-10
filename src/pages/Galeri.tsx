@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, ImageOff, X } from 'lucide-react';
-import { usePageSources } from '../lib/data';
+import { usePageSources, useSource } from '../lib/data';
+import type { GaleriFolder, GaleriPhoto } from '../lib/data';
 import { Card, LoadingScreen, PageHeader, Select } from '../components/ui';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
 
-type Folder = { id: string; name: string };
-type Photo = { id: string; name: string; bidang: string };
 const BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const monthLabel = (n: string) => { const m = n.match(/^(\d{4})\.(\d{2})/); return m ? `${BULAN[+m[2]]} ${m[1]}` : n; };
 const title = (n: string) => n.replace(/\.[a-z0-9]+$/i, '').replace(/\s+/g, ' ').trim();
@@ -20,23 +19,54 @@ function Img({ id, w, className, alt }: { id: string; w: number; className: stri
 }
 
 export default function Galeri() {
-  usePageSources([]);
-  const [months, setMonths] = useState<Folder[] | null>(null);
+  usePageSources(['galeri']);
+  const galeriSrc = useSource('galeri');
+  const [months, setMonths] = useState<GaleriFolder[] | null>(null);
   const [month, setMonth] = useState('');
-  const [photos, setPhotos] = useState<Photo[] | null>(null);
+  const [photos, setPhotos] = useState<GaleriPhoto[] | null>(null);
   const [bidang, setBidang] = useState('Semua');
   const [err, setErr] = useState('');
   const [open, setOpen] = useState(-1);
 
+  // Daftar folder bulan kini dimuat lewat DataProvider (sumber 'galeri')
+  // supaya tombol "Refresh Data" di TopBar ikut memuat ulangnya; bulan
+  // pilihan pengguna dipertahankan bila masih ada di daftar baru.
   useEffect(() => {
-    fetch('/api/galeri').then((r) => r.json()).then((d) => { setMonths(d.months || []); if (d.months?.[0]) setMonth(d.months[0].id); })
-      .catch(() => setErr('Daftar folder tidak dapat dimuat.'));
-  }, []);
+    const ms = galeriSrc.data?.months;
+    if (!ms) return;
+    setMonths(ms);
+    setMonth((cur) => (cur && ms.some((m) => m.id === cur) ? cur : ms[0]?.id ?? ''));
+  }, [galeriSrc.data]);
+
+  // Sinyal refresh global (pola yang sama dengan Ultg): tombol "Refresh Data"
+  // memuat ulang sumber galeri lewat DataProvider, sehingga
+  // galeriSrc.updatedAt berubah — tapi foto di halaman ini dimuat oleh effect
+  // lokal di bawah. Abaikan perubahan updatedAt PERTAMA (pemuatan awal saat
+  // mount) supaya mount tidak fetch ganda; refresh berikutnya menaikkan tick
+  // dan effect foto jalan ulang untuk bulan yang sedang dipilih.
+  const [galeriTick, setGaleriTick] = useState(0);
+  const galeriFirst = useRef(true);
+  const galeriSeen = useRef<Date | undefined>(undefined);
+  useEffect(() => {
+    const at = galeriSrc.updatedAt;
+    if (!at || galeriSeen.current === at) return;
+    galeriSeen.current = at;
+    if (galeriFirst.current) { galeriFirst.current = false; return; }
+    setGaleriTick((t) => t + 1);
+  }, [galeriSrc.updatedAt]);
+
+  const lastMonthRef = useRef('');
   useEffect(() => {
     if (!month) return;
-    setPhotos(null); setBidang('Semua');
-    fetch(`/api/galeri?month=${month}`).then((r) => r.json()).then((d) => setPhotos(d.photos || [])).catch(() => setErr('Foto tidak dapat dimuat.'));
-  }, [month]);
+    const monthChanged = lastMonthRef.current !== month;
+    lastMonthRef.current = month;
+    setPhotos(null);
+    if (monthChanged) setBidang('Semua');
+    fetch(`/api/galeri?month=${month}&_t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { setPhotos(d.photos || []); setErr(''); })
+      .catch(() => setErr('Foto tidak dapat dimuat.'));
+  }, [month, galeriTick]);
 
   const bidangList = useMemo(() => ['Semua', ...[...new Set((photos || []).map((p) => p.bidang))]], [photos]);
   const shown = useMemo(() => (photos || []).filter((p) => bidang === 'Semua' || p.bidang === bidang), [photos, bidang]);
@@ -90,7 +120,8 @@ export default function Galeri() {
         right={<a href={ROOT_URL} target="_blank" rel="noopener noreferrer" className="badge" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', padding: '8px 14px' }}>Buka folder Drive <ExternalLink size={14} /></a>} />
       <Card className="space-y-4">
         {err && <div className="t-muted">{err}</div>}
-        {!months && !err && <LoadingScreen text="Memuat galeri…" />}
+        {galeriSrc.status === 'error' && !months && <div className="t-muted">Daftar folder tidak dapat dimuat.</div>}
+        {!months && galeriSrc.status !== 'error' && !err && <LoadingScreen text="Memuat galeri…" />}
         {months && (
           <div className="flex flex-wrap gap-4 items-end">
             <Select label="Bulan" value={month} onChange={setMonth} options={months.map((m) => ({ value: m.id, label: monthLabel(m.name) }))} className="w-56" />

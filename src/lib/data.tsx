@@ -11,8 +11,11 @@ export interface PenebanganData { rows: PenebanganRow[] }
 export interface KerawananData { rows: KerawananRow[]; keys: string[] }
 export interface GangguanData { rows: GangguanRow[] }
 export interface RekapGangguanData { rows: RekapGangguanRow[] }
+export interface GaleriFolder { id: string; name: string }
+export interface GaleriPhoto { id: string; name: string; bidang: string }
+export interface GaleriData { months: GaleriFolder[] }
 
-type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData; rekapGangguan: RekapGangguanData };
+type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData; rekapGangguan: RekapGangguanData; galeri: GaleriData };
 export type SourceKey = keyof Sources;
 export interface SourceState<T> { status: 'idle' | 'loading' | 'ok' | 'error'; data?: T; error?: string; updatedAt?: Date }
 
@@ -89,10 +92,17 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
     if (!t) throw new Error('Sheet "INPUT GGN PHT" tidak ditemukan');
     return { rows: parseRekapGangguan(await fetchGrid(SHEETS.rekapGangguan, t.gid)) };
   },
+  async galeri() {
+    const res = await fetch(`/api/galeri?_t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+    if (!Array.isArray(d.months)) throw new Error('Daftar folder galeri tidak dapat dibaca');
+    return { months: d.months as GaleriFolder[] };
+  },
 };
 
 type State = { [K in SourceKey]: SourceState<Sources[K]> };
-const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' }, rekapGangguan: { status: 'idle' } };
+const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' }, rekapGangguan: { status: 'idle' }, galeri: { status: 'idle' } };
 
 interface Ctx { state: State; ensure: (k: SourceKey) => void; refresh: (keys?: SourceKey[]) => void }
 const DataCtx = createContext<Ctx | null>(null);
