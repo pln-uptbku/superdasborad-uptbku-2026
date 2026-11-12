@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { Activity, Axe, ChevronLeft, ChevronRight, Gauge, Home as HomeIcon, Images, LayoutDashboard, Menu, Moon, RefreshCw, ShieldAlert, Sun, TreePine, Zap, X } from 'lucide-react';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { DataProvider, PageSourcesProvider, useData, usePageSourceKeys } from './lib/data';
 import { LoadingScreen, ThemeProvider, UptLogo, useTheme } from './components/ui';
 import { ExportMenu, ExportProvider } from './lib/export';
@@ -160,6 +161,7 @@ export default function App() {
               <Shell />
             </ExportProvider>
             <Analytics />
+            <SpeedInsights />
           </BrowserRouter>
         </PageSourcesProvider>
       </DataProvider>
