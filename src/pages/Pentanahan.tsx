@@ -20,7 +20,45 @@ import { ExportSheet, XKpis, XNote, XSection, XTable } from '../lib/export';
  * V/X (tanpa nilai tahanan). Jadwal: minggu diturunkan dari urutan baris
  * per penghantar (baris ke-i = Feb M1 + i minggu) karena sel minggu di
  * sheet masih kosong (CSV tidak membawa warna fill).
+ *
+ * Target per slice struktural (tahun + ULTG + PHT) — % Realisasi & Belum
+ * Diukur mengikuti slice itu (lihat sliceTarget): target(slice) = Σ per
+ * penghantar [target_PHT × (terukur PHT di slice / terukur PHT total)].
+ * Filter hasil (Kondisi/Alat/Rekomendasi/Terpasang/pencarian) TIDAK mengubah
+ * kedua kartu itu — target tidak terbagi menurut hasil/alat.
  */
+function sliceTarget(y: PentanahanYearData, ultg: string, pht: string) {
+  const inSlice = (t: PentanahanTower) =>
+    (ultg === 'Semua' || t.ultg === ultg) && (pht === 'Semua' || t.pht === pht);
+  const measured = y.towers.filter(inSlice).length;
+  const perPht = new Map<string, { tot: number; in: number }>();
+  for (const t of y.towers) {
+    const o = perPht.get(t.phtKey) ?? { tot: 0, in: 0 };
+    o.tot += 1;
+    if (inSlice(t)) o.in += 1;
+    perPht.set(t.phtKey, o);
+  }
+  let target = 0;
+  let unalloc = 0;
+  const unallocPht: string[] = [];
+  for (const r of y.rekap) {
+    const o = perPht.get(r.phtKey);
+    const mTot = o?.tot ?? 0;
+    const mIn = o?.in ?? 0;
+    if (mTot > 0) target += (r.target * mIn) / mTot;
+    else if (pht === 'Semua' || r.pht === pht) {
+      // Penghantar tanpa satu pun tower terukur di tahun ini: targetnya
+      // dihitung penuh bila slice tidak membatasi ULTG; bila ULTG dibatasi,
+      // targetnya TIDAK dialokasikan (ULTG tower belum terukur tidak dapat
+      // ditentukan dari data tahun ini) — dicatat di `unalloc`.
+      if (ultg === 'Semua') target += r.target;
+      else { unalloc += r.target; unallocPht.push(r.pht); }
+    }
+  }
+  const targetR = Math.round(target);
+  return { target: targetR, measured, belum: Math.max(0, targetR - measured), pct: targetR ? (measured / targetR) * 100 : 0, unalloc, unallocPht };
+}
+
 export default function Pentanahan() {
   usePageSources(['pentanahan']);
   const s = useSource('pentanahan');
@@ -71,6 +109,11 @@ function Body({ data }: { data: PentanahanData }) {
   } : { ultg: [], pht: [], alat: [], rekomendasi: [], terpasang: [] }, [y]);
   const baikF = filtered.filter((t) => t.kondisi === 'BAIK').length;
   const burukF = filtered.length - baikF;
+  /** % Realisasi & Belum Diukur mengikuti slice STRUKTURAL (tahun + ULTG +
+      PHT) saja — filter hasil (Kondisi/Alat/Rekomendasi/Terpasang/pencarian)
+      tidak mengubah kedua kartu itu (target tidak terbagi menurut hasil). */
+  const slice = useMemo(() => (y ? sliceTarget(y, f.ultg, f.pht) : null), [y, f.ultg, f.pht]);
+  const sliceLabel = !y ? '' : f.ultg !== 'Semua' && f.pht !== 'Semua' ? `${f.pht} · ${f.ultg}` : f.ultg !== 'Semua' ? f.ultg : f.pht !== 'Semua' ? f.pht : `tahun ${y.year}`;
   const filterActive = f.ultg !== 'Semua' || f.pht !== 'Semua' || f.kondisi !== 'Semua' || f.alat !== 'Semua' || f.rekomendasi !== 'Semua' || f.terpasang !== 'Semua' || f.q.trim() !== '';
   const filterNote = filterActive ? ` · terfilter: ${[f.ultg !== 'Semua' && f.ultg, f.pht !== 'Semua' && f.pht, f.kondisi !== 'Semua' && f.kondisi, f.alat !== 'Semua' && f.alat, f.rekomendasi !== 'Semua' && `Rekomendasi ${f.rekomendasi}`, f.terpasang !== 'Semua' && `Terpasang ${f.terpasang}`, f.q.trim() && `"${f.q.trim()}"`].filter(Boolean).join(' · ')}` : '';
   return (
@@ -96,7 +139,7 @@ function Body({ data }: { data: PentanahanData }) {
             <Search value={f.q} onChange={set('q')} placeholder="Lokasi tower / rekomendasi…" />
             <div className="text-xs t-muted self-end pb-2">Opsi Rekomendasi &amp; Terpasang dihitung dari data tower unik tahun {year} — ganti tahun, opsi ikut berubah.</div>
           </div>
-          <div className="text-xs t-muted mt-3">Kondisi dihitung aturan SKDIR (tower ujung 3 Ω, lainnya 10 Ω) — bukan kolom Kondisi sheet. % Realisasi &amp; Belum Diukur selalu angka tahun penuh (target tidak terbagi per filter){y.hasRealisasi ? '.' : '; tab REALISASI ' + year + ' belum ada sehingga target ditampilkan —.'}</div>
+          <div className="text-xs t-muted mt-3">Kondisi dihitung aturan SKDIR (tower ujung 3 Ω, lainnya 10 Ω) — bukan kolom Kondisi sheet. % Realisasi &amp; Belum Diukur mengikuti ULTG/Penghantar yang dipilih: target dialokasikan per penghantar dari sebaran tower terukur penghantar itu (tower belum diukur diasumsikan mengikuti sebaran yang sama); filter Kondisi/Alat/Rekomendasi/Terpasang/pencarian tidak mengubah kedua kartu itu{y.hasRealisasi ? '.' : '; tab REALISASI ' + year + ' belum ada sehingga target ditampilkan —.'}</div>
         </Card>
       )}
       {y && (
@@ -104,8 +147,8 @@ function Body({ data }: { data: PentanahanData }) {
           <StatCard label="Total Diukur" value={fmtNum(filtered.length)} color={C.cyan} icon={<PlugZap />} sub={`target ${fmtNum(y.target)} tower · ${fmtNum(y.rawRows)} baris ASESMEN`} />
           <StatCard label="BAIK" value={fmtNum(baikF)} color={C.ok} sub={`${filtered.length ? ((baikF / filtered.length) * 100).toFixed(1) : '0'}% dari terukur`} />
           <StatCard label="BURUK" value={fmtNum(burukF)} color={C.crit} sub={`${fmtNum(y.flipped)} di antaranya tower ujung (SKDIR 3 Ω, sheet: BAIK)`} />
-          <StatCard label="% Realisasi" value={y.hasRealisasi ? `${fmtNum(y.pct, 1)}%` : '—'} color={C.blue} sub={y.hasRealisasi ? `tahun ${y.year}: terukur ${fmtNum(y.total)} / target ${fmtNum(y.target)}` : `tab REALISASI ${y.year} belum ada`} />
-          <StatCard label="Belum Diukur" value={y.hasRealisasi ? fmtNum(y.belumDiukur) : '—'} color={C.warn} sub={y.hasRealisasi ? `tahun ${y.year}: target − terukur · ${fmtNum(y.belumDiukurRows)} baris BELUM DIUKUR di ASESMEN` : `tab REALISASI ${y.year} belum ada`} />
+          <StatCard label="% Realisasi" value={y.hasRealisasi && slice && slice.target ? `${fmtNum(slice.pct, 1)}%` : '—'} color={C.blue} sub={y.hasRealisasi && slice ? (slice.target ? `${sliceLabel} · terukur ${fmtNum(slice.measured)} / target ${fmtNum(slice.target)}` : `${sliceLabel} · target belum dapat ditentukan (penghantar tanpa pengukuran)`) : `tab REALISASI ${y.year} belum ada`} />
+          <StatCard label="Belum Diukur" value={y.hasRealisasi && slice && slice.target ? fmtNum(slice.belum) : '—'} color={C.warn} sub={y.hasRealisasi && slice ? (slice.target ? `${sliceLabel} · target − terukur${slice.unalloc ? ` · + ${fmtNum(slice.unalloc)} tower tanpa pengukuran (${slice.unallocPht.join(', ')}) tidak teralokasi ke ULTG` : ''}` : `${sliceLabel} · target belum dapat ditentukan (penghantar tanpa pengukuran)`) : `tab REALISASI ${y.year} belum ada`} />
         </div>
       )}
       {is2024 && data.data2024 && (
@@ -123,7 +166,7 @@ function Body({ data }: { data: PentanahanData }) {
       {tab === 'jadwal' && <JadwalTab data={data} year={year} />}
 
       {/* Lembar ringkasan 1 halaman tegak (Export PDF/PNG) — off-screen, lihat src/lib/export.tsx */}
-      {y && <ExportSheetYear y={y} towers={filtered} baik={baikF} buruk={burukF} filterNote={filterNote} />}
+      {y && slice && <ExportSheetYear y={y} towers={filtered} baik={baikF} buruk={burukF} filterNote={filterNote} slice={slice} sliceLabel={sliceLabel} />}
       {is2024 && data.data2024 && <ExportSheet2024 d={data.data2024} />}
     </div>
   );
@@ -352,7 +395,7 @@ function JadwalTab({ data, year }: { data: PentanahanData; year: number }) {
 
 /* ---------------- lembar export 1 halaman ---------------- */
 
-function ExportSheetYear({ y, towers, baik, buruk, filterNote }: { y: PentanahanYearData; towers: PentanahanTower[]; baik: number; buruk: number; filterNote: string }) {
+function ExportSheetYear({ y, towers, baik, buruk, filterNote, slice, sliceLabel }: { y: PentanahanYearData; towers: PentanahanTower[]; baik: number; buruk: number; filterNote: string; slice: ReturnType<typeof sliceTarget>; sliceLabel: string }) {
   const rekap = useMemo(() => {
     const agg = new Map<string, { terukur: number; baik: number; buruk: number; maxNilai: number | null }>();
     for (const tw of towers) {
@@ -376,8 +419,8 @@ function ExportSheetYear({ y, towers, baik, buruk, filterNote }: { y: Pentanahan
         { label: 'Total Diukur', value: fmtNum(towers.length), sub: y.hasRealisasi ? `target ${fmtNum(y.target)} tower` : 'target belum tersedia', color: C.cyan },
         { label: 'BAIK', value: fmtNum(baik), sub: 'Kondisi SKDIR', color: C.ok },
         { label: 'BURUK', value: fmtNum(buruk), sub: `${fmtNum(y.flipped)} tower ujung (3 Ω)`, color: C.crit },
-        { label: '% Realisasi', value: y.hasRealisasi ? `${fmtNum(y.pct, 1)}%` : '—', sub: `terukur / target`, color: C.blue },
-        { label: 'Belum Diukur', value: y.hasRealisasi ? fmtNum(y.belumDiukur) : '—', sub: `target − terukur`, color: C.warn },
+        { label: '% Realisasi', value: y.hasRealisasi && slice.target ? `${fmtNum(slice.pct, 1)}%` : '—', sub: `${sliceLabel} · ${fmtNum(slice.measured)}/${fmtNum(slice.target)}`, color: C.blue },
+        { label: 'Belum Diukur', value: y.hasRealisasi && slice.target ? fmtNum(slice.belum) : '—', sub: `${sliceLabel} · target − terukur`, color: C.warn },
       ]} />
       <XSection title="Kondisi Tower (SKDIR)" height={160}>
         <SimplePie data={[{ name: 'BAIK', value: baik }, { name: 'BURUK', value: buruk }]} colors={{ BAIK: C.ok, BURUK: C.crit }} />
@@ -392,6 +435,7 @@ function ExportSheetYear({ y, towers, baik, buruk, filterNote }: { y: Pentanahan
         maxRows={5} compact />
       <XNote>
         Kondisi dihitung aturan SKDIR Gambar 2-10 (tower ujung 5 pertama/terakhir: 3 Ω; lainnya 10 Ω) — bukan kolom Kondisi sheet (10 Ω rata). {fmtNum(y.flipped)} tower berubah BAIK→BURUK vs sheet.
+        % Realisasi &amp; Belum Diukur mengikuti ULTG/Penghantar yang dipilih (target dialokasikan per penghantar dari sebaran tower terukur).
         {outlier && <> Catatan data: {outlier.lokasi} Nilai Max {fmtNum(outlier.nilaiMax, 2)} Ω (Leg A–D {fmtNum(outlier.legA, 1)}–{fmtNum(outlier.legD, 1)} Ω) — kemungkinan salah ketik, ditampilkan apa adanya.</>}
       </XNote>
     </ExportSheet>
