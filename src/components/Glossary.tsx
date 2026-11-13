@@ -154,7 +154,55 @@ export const GLOSSARY: GlossaryEntry[] = [
   {
     term: 'NS',
     short: 'NEW SRINTAMI',
-    def: 'NEW SRINTAMI — sumber data tegakan; data halaman Tegakan ditarik dari sheet “TARIKAN NEW SRINTAMI”.',
+    def: 'NEW SRINTAMI — kelompok menu yang menghimpun data pemantauan aset transmisi: TEGAKAN, PENTANAHAN, THERMOVISI, CUI, dan HI TRANSMISI. Data halaman Tegakan ditarik dari sheet “TARIKAN NEW SRINTAMI”.',
+    source: 'Data UPT Bengkulu 2026',
+  },
+  {
+    term: 'Pentanahan',
+    short: 'Sistem pentanahan tower',
+    def: 'Sistem pentanahan (grounding) tower transmisi — jaringan elektroda di kaki tower yang menyalurkan arus gangguan (misalnya sambaran petir) ke tanah. Tahanan pentanahan yang kecil berarti arus lebih cepat terbuang dan tower lebih aman.',
+    source: 'SK Direksi — Gambar 2-10 Pengujian Resistansi Pentanahan Tower',
+  },
+  {
+    term: 'Tahanan Pentanahan',
+    short: 'Tahanan pentanahan (Ω)',
+    def: 'Nilai hambatan sistem pentanahan tower, diukur dalam Ohm (Ω) dengan earth tester. Batas SKDIR: tower ujung (5 tower pertama dan 5 tower terakhir tiap penghantar) maksimal 3 Ohm (70/150/275 kV) atau 1 Ohm (500 kV); tower lain maksimal 10 Ohm (mengacu ke SPLN).',
+    source: 'SK Direksi — Gambar 2-10 Pengujian Resistansi Pentanahan Tower',
+  },
+  {
+    term: 'Leg',
+    short: 'Kaki tower',
+    def: 'Kaki tower — tiap tower transmisi memiliki 4 kaki (Leg A, B, C, D). Pengukuran pentanahan dilakukan per kaki; Nilai Max adalah nilai terbesar dari keempat kaki dan metode pengukuran lain yang terisi.',
+    source: 'Data UPT Bengkulu 2026',
+  },
+  {
+    term: 'MRG',
+    short: 'Kode rekomendasi perbaikan pentanahan',
+    def: 'Kode rekomendasi perbaikan pentanahan yang tercatat di kolom Rekomendasi ASESMEN untuk tower BURUK. Pada ASESMEN 2026, MRG tercatat di 481 tower; “Terpasang MRG & MGGS” berarti perbaikan sudah terpasang di tower tersebut.',
+    source: 'Data UPT Bengkulu 2026',
+  },
+  {
+    term: 'MGGS',
+    short: 'Kode rekomendasi perbaikan pentanahan',
+    def: 'Kode rekomendasi perbaikan pentanahan yang tercatat di kolom Rekomendasi ASESMEN untuk tower BURUK. Pada ASESMEN 2026, MGGS tercatat di 172 tower; “Terpasang MRG & MGGS” berarti perbaikan sudah terpasang di tower tersebut.',
+    source: 'Data UPT Bengkulu 2026',
+  },
+  {
+    term: 'Direct Gr',
+    short: 'Pengukuran langsung (Direct Grounding)',
+    def: 'Nilai pengukuran tahanan pentanahan metode langsung (Direct Gr) — salah satu metode pengukuran di ASESMEN (Direct, Pspt, Dalam, Luar). Di data 2026, kolom ini hanya terisi 204 dari 2.485 baris; Nilai Max adalah nilai terbesar dari semua metode yang terisi.',
+    source: 'Data UPT Bengkulu 2026',
+  },
+  {
+    term: 'Resistivitas',
+    short: 'Resistivitas tanah',
+    def: 'Resistivitas tanah — ukuran seberapa besar tanah menahan aliran arus listrik (Ohm-meter). Tanah dengan resistivitas tinggi membuat tahanan pentanahan tower sulit turun; dicatat di kolom Resistivitas ASESMEN.',
+    source: 'Definisi umum',
+  },
+  {
+    term: 'Earth tester',
+    short: 'Alat ukur tahanan pentanahan',
+    def: 'Earth tester — alat ukur tahanan pentanahan (metode P-C-E: probe arus dan probe tegangan). Di UPT Bengkulu dipakai KYORITSU (1.527 pengukuran 2026) dan FLUKE (693 pengukuran 2026).',
     source: 'Data UPT Bengkulu 2026',
   },
 ];

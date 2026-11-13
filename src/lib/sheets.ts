@@ -8,6 +8,7 @@ export const SHEETS = {
   kerawanan: '1klVILSFsrBGMvkmj6y84QRk3ax69knShhdw-_0MsJ2Y',
   gangguan: '1HHv9iiUom0jxtqFcUtF79orS1s8j-x-sW3nxvOXAMaE',
   rekapGangguan: '1LleZ7EW5DfmrHoUvsOyigSkCXUBbGQDNAuTwfQ2ajMQ',
+  pentanahan: '19BFGKRvnv3lfumAJSoG4nM0736AJTVgXlzCHv6-d0r4',
 } as const;
 
 /** Fallback tab list (name → gid), used when tab discovery fails. Verified Oct 2026. */
@@ -32,6 +33,16 @@ export const FALLBACK_TABS: Record<string, { name: string; gid: string }[]> = {
   [SHEETS.kerawanan]: [{ name: 'SELURUH DATA', gid: '1392116848' }],
   [SHEETS.gangguan]: [{ name: 'UPTBKU', gid: '699810541' }],
   [SHEETS.rekapGangguan]: [{ name: 'INPUT GGN PHT', gid: '1912142062' }],
+  [SHEETS.pentanahan]: [
+    { name: 'ASESMEN PENTANAHAN 2026', gid: '1980721959' },
+    { name: 'ASESMEN PENTANAHAN 2025', gid: '1059579512' },
+    { name: 'REALISASI 2026', gid: '1001341677' },
+    { name: 'REALISASI 2025', gid: '1977347452' },
+    { name: 'JADWAL 2026 ULTG PEKALONGAN', gid: '0' },
+    { name: 'JADWAL 2026 ULTG LAHAT', gid: '579042227' },
+    { name: 'CHECKLIST 2024', gid: '885393912' },
+    { name: 'REALISASI 2024', gid: '1385519651' },
+  ],
 };
 
 export type Grid = string[][];
@@ -69,6 +80,43 @@ export async function listTabs(id: string): Promise<{ name: string; gid: string 
   } catch {
     return FALLBACK_TABS[id] ?? [];
   }
+}
+
+/** Peta tab Pentanahan hasil penemuan dari daftar tab sheet — TAHUN DITEMUKAN
+ *  DARI NAMA TAB (pola `ASESMEN PENTANAHAN YYYY` / `REALISASI YYYY` /
+ *  `JADWAL YYYY ULTG ...`), BUKAN dari daftar tahun hardcode. Bila UPT
+ *  menambah tab ASESMEN PENTANAHAN 2027 (dan REALISASI 2027 / JADWAL 2027),
+ *  tahun itu otomatis muncul di chip tahun tanpa perubahan kode. */
+export interface PentanahanTabMap {
+  asesmen: { year: number; name: string; gid: string }[];
+  realisasi: Map<number, { name: string; gid: string }>;
+  jadwal: { year: number; ultg: 'PEKALONGAN' | 'LAHAT'; name: string; gid: string }[];
+  checklist2024: { name: string; gid: string } | null;
+  realisasi2024: { name: string; gid: string } | null;
+}
+export function pentanahanTabs(tabs: { name: string; gid: string }[]): PentanahanTabMap {
+  const asesmen: PentanahanTabMap['asesmen'] = [];
+  const realisasi = new Map<number, { name: string; gid: string }>();
+  const jadwal: PentanahanTabMap['jadwal'] = [];
+  let checklist2024: PentanahanTabMap['checklist2024'] = null;
+  let realisasi2024: PentanahanTabMap['realisasi2024'] = null;
+  for (const t of tabs) {
+    const name = t.name.trim();
+    let m = name.match(/^ASESMEN PENTANAHAN (\d{4})$/i);
+    if (m) { asesmen.push({ year: +m[1], name, gid: t.gid }); continue; }
+    m = name.match(/^REALISASI (\d{4})$/i);
+    if (m) {
+      if (+m[1] === 2024) realisasi2024 = { name, gid: t.gid };
+      else realisasi.set(+m[1], { name, gid: t.gid });
+      continue;
+    }
+    m = name.match(/^JADWAL (\d{4}) ULTG (PEKALONGAN|LAHAT)$/i);
+    if (m) { jadwal.push({ year: +m[1], ultg: m[2].toUpperCase() as 'PEKALONGAN' | 'LAHAT', name, gid: t.gid }); continue; }
+    if (/^CHECKLIST 2024$/i.test(name)) checklist2024 = { name, gid: t.gid };
+  }
+  asesmen.sort((a, b) => b.year - a.year);
+  jadwal.sort((a, b) => b.year - a.year || a.ultg.localeCompare(b.ultg));
+  return { asesmen, realisasi, jadwal, checklist2024, realisasi2024 };
 }
 
 /** Fetch one tab as a CSV grid (no cache). */
