@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TegakanRow, TEG_STATUSES, NkoRow, pctOf } from '../lib/parsers';
 import { C, STATUS_COLORS, useChartTheme } from './ui';
@@ -84,10 +84,37 @@ export function SimplePie({ data, colors, inner = 55, animate = true }: { data: 
   const topIdx = data.reduce((bi, d, i) => (d.value > (data[bi]?.value ?? -1) ? i : bi), 0);
   const top = data[topIdx];
   const topPct = total > 0 && top ? (top.value / total) * 100 : null;
+  // Tengah donat: ukuran teks mengikuti ukuran lubang, BUKAN tetap 30px.
+  // Lubang = innerRadius % dari maxRadius (min(w,h)/2) -> diameter lubang = inner% × min(w,h).
+  // Di lembar export donat kecil (tinggi 160px -> lubang ~77px), "60,5%" 30px (~88px) lebih
+  // lebar dari lubang dan hampir menyentuh ring. Wadah diukur dengan ResizeObserver,
+  // lalu font diskala supaya blok teks muat dengan jarak aman dari ring.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [minDim, setMinDim] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => setMinDim(Math.min(el.clientWidth, el.clientHeight));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Estimasi lebar teks (Inter extrabold/semibold): digit 0.62em, koma/titik 0.32em,
+  // '%' 0.92em, huruf kapital 0.62em + spasi huruf 0.08em, spasi 0.32em.
+  const estEm = (s: string) =>
+    [...s].reduce((a, ch) => a + (/[0-9]/.test(ch) ? 0.62 : ch === ',' || ch === '.' ? 0.32 : ch === '%' ? 0.92 : ch === ' ' ? 0.32 : 0.7), 0);
+  const holeD = (inner / 100) * minDim;
+  // Kriteria: lebar blok teks ≤ 75% diameter lubang (jarak ke ring ≥ 12,5% diameter
+  // tiap sisi — ≥ ~4px pada lubang terkecil); ukuran 11–30px (30px = ukuran lama).
+  const pctText = topPct == null ? '' : `${fmtNum(topPct, 1)}%`;
+  const pctFont = minDim > 0 && topPct != null ? Math.max(11, Math.min(30, (0.75 * holeD) / Math.max(estEm(pctText), 1))) : 30;
+  const nameText = top ? top.name.toUpperCase() : '';
+  const nameFont = minDim > 0 && top ? Math.max(9, Math.min(11, (0.75 * holeD) / Math.max(estEm(nameText), 1))) : 11;
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1">
-        <div className="relative mx-auto h-full" style={{ aspectRatio: '1 / 1', maxWidth: '100%' }}>
+        <div ref={wrapRef} className="relative mx-auto h-full" style={{ aspectRatio: '1 / 1', maxWidth: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} dataKey="value" nameKey="name" innerRadius={`${inner}%`} outerRadius="80%" paddingAngle={2} stroke="none" isAnimationActive={animate}>
@@ -100,8 +127,8 @@ export function SimplePie({ data, colors, inner = 55, animate = true }: { data: 
             {topPct == null
               ? <div className="text-2xl font-extrabold t-muted">—</div>
               : <>
-                <div className="text-3xl font-extrabold leading-none" style={{ color: colorOf(top, topIdx) }}>{fmtNum(topPct, 1)}%</div>
-                <div className="t-label mt-1.5">{top.name}</div>
+                <div className="font-extrabold leading-none" style={{ color: colorOf(top, topIdx), fontSize: pctFont }}>{fmtNum(topPct, 1)}%</div>
+                <div className="t-label mt-1.5" style={{ fontSize: nameFont }}>{top.name}</div>
               </>}
           </div>
         </div>
