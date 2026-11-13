@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { FALLBACK_TABS, fetchGrid, fetchGridRange, listTabs, SHEETS } from './sheets';
 import {
-  GangguanRow, KerawananRow, NkoMonth, PenebanganRow, RekapGangguanRow, TegakanRow, TrendSeries,
-  parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parseRekapGangguan, parseTegakan, parseTrend,
+  GangguanRow, KerawananRow, NkoMonth, PenebanganRow, PentanahanData2024, PentanahanJadwalRow, PentanahanYearData, RekapGangguanRow, TegakanRow, TrendSeries,
+  buildPentanahan2024, buildPentanahanYear, parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parsePentanahanJadwal, parseRekapGangguan, parseTegakan, parseTrend,
 } from './parsers';
 
 export interface NkoData { months: NkoMonth[] }
@@ -14,8 +14,15 @@ export interface RekapGangguanData { rows: RekapGangguanRow[] }
 export interface GaleriFolder { id: string; name: string }
 export interface GaleriPhoto { id: string; name: string; bidang: string }
 export interface GaleriData { months: GaleriFolder[] }
+export interface PentanahanData {
+  years: Partial<Record<number, PentanahanYearData>>;
+  availableYears: number[];
+  jadwal: PentanahanJadwalRow[];
+  jadwalWarnings: string[];
+  data2024: PentanahanData2024 | null;
+}
 
-type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData; rekapGangguan: RekapGangguanData; galeri: GaleriData };
+type Sources = { nko: NkoData; tegakan: TegakanData; penebangan: PenebanganData; kerawanan: KerawananData; kerawananMap: KerawananData; gangguan: GangguanData; rekapGangguan: RekapGangguanData; galeri: GaleriData; pentanahan: PentanahanData };
 export type SourceKey = keyof Sources;
 export interface SourceState<T> { status: 'idle' | 'loading' | 'ok' | 'error'; data?: T; error?: string; updatedAt?: Date }
 
@@ -99,10 +106,37 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
     if (!Array.isArray(d.months)) throw new Error('Daftar folder galeri tidak dapat dibaca');
     return { months: d.months as GaleriFolder[] };
   },
+  async pentanahan() {
+    const tabs = await listTabs(SHEETS.pentanahan);
+    const get = async (re: RegExp) => {
+      const t = tabs.find((x) => re.test(x.name.trim()));
+      return t ? fetchGrid(SHEETS.pentanahan, t.gid) : null;
+    };
+    const [a26, a25, r26, r25, jp, jl, c24, r24] = await Promise.all([
+      get(/^ASESMEN PENTANAHAN 2026/i), get(/^ASESMEN PENTANAHAN 2025/i),
+      get(/^REALISASI 2026/i), get(/^REALISASI 2025/i),
+      get(/JADWAL 2026 ULTG PEKALONGAN/i), get(/JADWAL 2026 ULTG LAHAT/i),
+      get(/^CHECKLIST 2024/i), get(/^REALISASI 2024/i),
+    ]);
+    const years: Partial<Record<number, PentanahanYearData>> = {};
+    if (a26 && r26) years[2026] = buildPentanahanYear(2026, a26, r26);
+    if (a25 && r25) years[2025] = buildPentanahanYear(2025, a25, r25);
+    const jP = jp ? parsePentanahanJadwal('PEKALONGAN', jp) : null;
+    const jL = jl ? parsePentanahanJadwal('LAHAT', jl) : null;
+    const data2024 = c24 && r24 ? buildPentanahan2024(c24, r24) : null;
+    const availableYears = [...Object.keys(years).map(Number), ...(data2024 ? [2024] : [])].sort((a, b) => b - a);
+    if (!availableYears.length && !(jP || jL)) throw new Error('Tab Pentanahan (ASESMEN/REALISASI/JADWAL/CHECKLIST) tidak ditemukan');
+    return {
+      years, availableYears,
+      jadwal: [...(jP?.rows ?? []), ...(jL?.rows ?? [])],
+      jadwalWarnings: [...(jP?.warnings ?? []), ...(jL?.warnings ?? [])],
+      data2024,
+    };
+  },
 };
 
 type State = { [K in SourceKey]: SourceState<Sources[K]> };
-const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' }, rekapGangguan: { status: 'idle' }, galeri: { status: 'idle' } };
+const initial: State = { nko: { status: 'idle' }, tegakan: { status: 'idle' }, penebangan: { status: 'idle' }, kerawanan: { status: 'idle' }, kerawananMap: { status: 'idle' }, gangguan: { status: 'idle' }, rekapGangguan: { status: 'idle' }, galeri: { status: 'idle' }, pentanahan: { status: 'idle' } };
 
 interface Ctx { state: State; ensure: (k: SourceKey) => void; refresh: (keys?: SourceKey[]) => void }
 const DataCtx = createContext<Ctx | null>(null);

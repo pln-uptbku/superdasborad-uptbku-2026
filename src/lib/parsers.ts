@@ -1,4 +1,4 @@
-import { cell, Grid, monthIndex, num, num0, parseDate } from './sheets';
+import { cell, Grid, MONTHS_SHORT, monthIndex, num, num0, parseDate } from './sheets';
 
 /* ============================================================
  * KINERJA NKO — monthly tabs "1.JAN" … "12.DES"
@@ -389,7 +389,350 @@ export interface RekapGangguanRow {
   jamPetirLds: string; analisaDfr: string; temuanLapangan: string; evaluasiKinerja: string;
   keterangan: string; linkAnev: string;
 }
-/** Durasi: angka jam ("0,317") atau format jam:menit ("0:41" → 0,68 jam). */
+/* ============================================================
+ * PENTANAHAN TOWER (NEW SRINTAMI) — sheet "REKAP PENGUKURAN PENTANAHAN UPT BKU"
+ * ASESMEN PENTANAHAN <tahun>: header baris 0 (23 kolom): No | PHT | Lokasi |
+ * Tanggal | Upt | Ultg | Alat | Grounding | Leg A–D | Direct Gr Nilai |
+ * Pspt Gr Nilai | Dalam Gr Nilai | Luar Gr Nilai | Nilai Max | Kondisi |
+ * Tahanan | RE | Resistivitas | Rekomendasi | Terpasang.
+ * REALISASI <tahun>: tabel kanan, header baris 1 (PENANGGUNG JAWAB F | PHT G |
+ * TARGET H | KONDISI I | PERSENTASE K), sub-header baris 2 (BAIK I | BURUK J),
+ * data dari baris 3, baris TOTAL (G='TOTAL'). Sisi kiri adalah pivot — diabaikan.
+ * JADWAL 2026 ULTG <x>: header baris 0–2 (NO | ULTG | PENGHANTAR | TOWER |
+ * blok TARGET Feb–Sep col 4–35 + blok REALISASI col 36–67), data dari baris 3.
+ * CHECKLIST 2024: header baris 0 (PHT | TOWER | CHECKLIST V/X), data baris 1+.
+ * REALISASI 2024: header baris 2 (PENANGGUNG JAWAB A | PHT B | V C | X D |
+ * Grand Total E | TARGET F | REALISASI G | PERSENTASE H | TARGET I | KENDALA J),
+ * data baris 3–16, baris TOTAL (B='TRS UPT BENGKULU').
+ *
+ * Aturan Kondisi (SKDIR, Gambar 2-10 "Pengujian Resistansi Pentanahan Tower"):
+ * tower ujung = 5 tower pertama (no. 1–5) dan 5 tower terakhir (no. N-4 s.d. N)
+ * tiap penghantar → ambang 3 Ohm (70/150/275 kV), 1 Ohm (500 kV, tidak ada
+ * di data); tower lain → 10 Ohm (SPLN). BAIK bila Nilai Max <= ambang.
+ * N per penghantar = max(nomor tower tertinggi di ASESMEN, target REALISASI)
+ * — ujung rentang Jadwal TIDAK dipakai: rentang Jadwal adalah blok 7 tower
+ * seragam yang blok terakhirnya bisa melampaui ujung jalur nyata (mis.
+ * PBAAI-ARMUR: Jadwal 169–175 padahal jalur hanya 174 tower; N=174 memberi
+ * BAIK 1.354 / BURUK 883 untuk 2026, N=175 memberi 1.355/882 — salah satu
+ * tower, #0170, ikut berubah status). Rekap per tower UNIK: bila satu tower
+ * tercatat 2x, dipakai pengukuran terbaru (tanggal max; seri → baris terakhir).
+ * Kondisi dihitung dari Nilai Max + posisi, BUKAN dari kolom Kondisi sheet
+ * (kolom sheet memakai 10 Ohm rata untuk semua tower).
+ * ============================================================ */
+
+const PHT_ALIASES: Record<string, string> = { BJSRI: 'BJSARI', KBAGN: 'KBANG', PKLGN: 'PKLNG', TES: 'TESS', ARGMR: 'ARMUR' };
+
+/** Kunci kanonik penghantar: buang "TRS"/tegangan, betulkan varian ejaan
+    (BJSRI→BJSARI, KBAGN→KBANG, PKLGN→PKLNG, TES→TESS, ARGMR→ARMUR),
+    urutkan kedua ujung secara alfabetis supaya "LAHAT-KBANG" dan
+    "KBAGN-LAHAT" (juga "TES"/"TESS", "PKLGN"/"PKLNG") bergabung. */
+export function canonPht(name: string): string {
+  const s = name.toUpperCase().replace(/\bTRS\b/g, '').replace(/\d+\s*KV/g, '');
+  const parts = s.split('-').map((p) => p.trim()).filter(Boolean).map((p) => PHT_ALIASES[p] ?? p);
+  parts.sort();
+  return parts.join('|');
+}
+
+/** Nama tampilan penghantar: seperti canonPht tapi urutan ujung dipertahankan
+    (mis. "TESS-PKLNG", "LAHAT-KBANG", "PBAAI-ARMUR"). */
+export function dispPht(name: string): string {
+  const s = name.toUpperCase().replace(/\bTRS\b/g, '').replace(/\d+\s*KV/g, '');
+  return s.split('-').map((p) => p.trim()).filter(Boolean).map((p) => PHT_ALIASES[p] ?? p).join('-').replace(/\s+/g, ' ');
+}
+
+export function towerNoOf(lokasi: string): number | null {
+  const m = lokasi.match(/#(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+export function voltOf(lokasi: string): number | null {
+  const m = lokasi.match(/(\d+)\s*kV/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** Ambang SKDIR: tower ujung (5 pertama + 5 terakhir) 3 Ohm (1 Ohm bila 500 kV),
+    tower lain 10 Ohm (SPLN). `total` = N (jumlah tower penghantar). */
+export function ambangPentanahan(n: number | null, total: number | null, kv: number | null): number {
+  if (n != null && total != null && total > 0 && (n <= 5 || n >= total - 4)) return kv === 500 ? 1 : 3;
+  return 10;
+}
+
+/** Integer dengan pemisah ribuan gaya US ("2,423" → 2423). num() biasa salah
+    di sini karena menganggap koma sebagai desimal (gaya Indonesia). */
+const intCell = (v: string): number | null => {
+  const s = v.trim();
+  if (!s) return null;
+  const n = parseInt(s.replace(/[^0-9-]/g, ''), 10);
+  return Number.isFinite(n) ? n : null;
+};
+
+export interface PentanahanRawRow {
+  key: number; pht: string; phtKey: string; lokasi: string; lokasiKey: string;
+  tanggal: Date | null; tanggalRaw: string; ultg: string; alat: string;
+  legA: number | null; legB: number | null; legC: number | null; legD: number | null;
+  nilaiMax: number | null; kondisiSheet: string; rekomendasi: string; terpasang: string;
+}
+
+export function parsePentanahanAsesmen(grid: Grid): PentanahanRawRow[] {
+  const out: PentanahanRawRow[] = [];
+  for (let k = 1; k < grid.length; k++) {
+    const r = grid[k];
+    if (r.length < 23 || !cell(r, 1)) continue;
+    const lokasi = cell(r, 2).replace(/\s+/g, ' ');
+    out.push({
+      key: k, pht: dispPht(cell(r, 1)), phtKey: canonPht(cell(r, 1)), lokasi,
+      lokasiKey: lokasi.toUpperCase(),
+      tanggalRaw: cell(r, 3), tanggal: parseDate(cell(r, 3)),
+      ultg: cell(r, 5).toUpperCase(), alat: cell(r, 6).toUpperCase(),
+      legA: num(cell(r, 8)), legB: num(cell(r, 9)), legC: num(cell(r, 10)), legD: num(cell(r, 11)),
+      nilaiMax: num(cell(r, 16)), kondisiSheet: cell(r, 17).toUpperCase(),
+      rekomendasi: cell(r, 21).toUpperCase(), terpasang: cell(r, 22),
+    });
+  }
+  return out;
+}
+
+export interface PentanahanTower extends PentanahanRawRow {
+  towerNo: number | null;
+  kv: number | null;
+  ujung: boolean;
+  ambang: number;
+  kondisi: 'BAIK' | 'BURUK';
+  /** Sheet BAIK (10 Ohm rata) tetapi SKDIR BURUK — tower ujung 3–10 Ohm. */
+  flipped: boolean;
+}
+export interface PentanahanRekap {
+  phtKey: string; pht: string; pj: string; target: number;
+  terukur: number; baik: number; buruk: number; pct: number | null; maxNilai: number | null;
+}
+export interface PentanahanYearData {
+  year: number;
+  towers: PentanahanTower[];
+  rekap: PentanahanRekap[];
+  target: number;
+  total: number; // tower unik terukur
+  baik: number; buruk: number;
+  belumDiukur: number; // target − terukur (>= 0)
+  pct: number; // terukur / target * 100
+  flipped: number; // tower berubah BAIK→BURUK vs kolom Kondisi sheet
+  months: { month: string; label: string; total: number; buruk: number }[];
+  sheetTotal: { target: number | null; baik: number | null; buruk: number | null; pct: string } | null;
+  rawRows: number; // baris ASESMEN (termasuk BELUM DIUKUR)
+  belumDiukurRows: number; // baris BELUM DIUKUR (tanpa pengukuran)
+  missingRekap: string[]; // PHT di REALISASI tanpa baris ASESMEN
+}
+
+/** REALISASI <tahun>: {phtKey → {pht, pj, target}} + baris TOTAL sheet. */
+function parsePentanahanRealisasi(grid: Grid): { rows: { phtKey: string; pht: string; pj: string; target: number }[]; total: PentanahanYearData['sheetTotal'] } {
+  const hIdx = grid.findIndex((r) => cell(r, 6).toUpperCase() === 'PHT');
+  const rows: { phtKey: string; pht: string; pj: string; target: number }[] = [];
+  let total: PentanahanYearData['sheetTotal'] = null;
+  if (hIdx < 0) return { rows, total };
+  for (let k = hIdx + 1; k < grid.length; k++) {
+    const r = grid[k];
+    const pht = cell(r, 6);
+    if (!pht) continue;
+    if (pht.toUpperCase() === 'TOTAL') {
+      total = { target: intCell(cell(r, 7)), baik: intCell(cell(r, 8)), buruk: intCell(cell(r, 9)), pct: cell(r, 10) };
+      continue;
+    }
+    const target = intCell(cell(r, 7));
+    if (target == null) continue;
+    rows.push({ phtKey: canonPht(pht), pht: dispPht(pht), pj: cell(r, 5), target });
+  }
+  return { rows, total };
+}
+
+/** Satu tahun ASESMEN + REALISASI → tower unik + rekap + tren bulanan. */
+export function buildPentanahanYear(year: number, asesGrid: Grid, realGrid: Grid): PentanahanYearData {
+  const raw = parsePentanahanAsesmen(asesGrid);
+  const measured = raw.filter((r) => r.kondisiSheet === 'BAIK' || r.kondisiSheet === 'BURUK');
+  // Dedup per tower unik (kunci: PHT kanonik + string Lokasi penuh) —
+  // pengukuran terbaru menang (tanggal max; seri → baris terakhir).
+  const latest = new Map<string, { r: PentanahanRawRow; idx: number }>();
+  measured.forEach((r, idx) => {
+    const key = `${r.phtKey}||${r.lokasiKey}`;
+    const cur = latest.get(key);
+    const t = r.tanggal?.getTime() ?? -1;
+    const ct = cur?.r.tanggal?.getTime() ?? -1;
+    if (!cur || t > ct || (t === ct && idx >= cur.idx)) latest.set(key, { r, idx });
+  });
+  const towers0 = [...latest.values()].map((v) => v.r);
+  const { rows: realRows, total: sheetTotal } = parsePentanahanRealisasi(realGrid);
+  const realByKey = new Map(realRows.map((x) => [x.phtKey, x]));
+  // N per penghantar = max(nomor tower tertinggi di ASESMEN, target REALISASI).
+  const maxNo = new Map<string, number>();
+  for (const r of towers0) {
+    const n = towerNoOf(r.lokasi);
+    if (n != null) maxNo.set(r.phtKey, Math.max(maxNo.get(r.phtKey) ?? 0, n));
+  }
+  const nOf = (k: string) => Math.max(maxNo.get(k) ?? 0, realByKey.get(k)?.target ?? 0);
+  const towers: PentanahanTower[] = towers0.map((r) => {
+    const towerNo = towerNoOf(r.lokasi);
+    const kv = voltOf(r.lokasi);
+    const N = nOf(r.phtKey);
+    const ujung = towerNo != null && N > 0 && (towerNo <= 5 || towerNo >= N - 4);
+    const ambang = ambangPentanahan(towerNo, N, kv);
+    const kondisi: 'BAIK' | 'BURUK' = r.nilaiMax != null && r.nilaiMax <= ambang ? 'BAIK' : 'BURUK';
+    return { ...r, towerNo, kv, ujung, ambang, kondisi, flipped: r.kondisiSheet === 'BAIK' && kondisi === 'BURUK' };
+  });
+  const agg = new Map<string, { terukur: number; baik: number; buruk: number; maxNilai: number | null }>();
+  for (const t of towers) {
+    const o = agg.get(t.phtKey) ?? { terukur: 0, baik: 0, buruk: 0, maxNilai: null as number | null };
+    o.terukur += 1;
+    if (t.kondisi === 'BAIK') o.baik += 1; else o.buruk += 1;
+    if (t.nilaiMax != null) o.maxNilai = o.maxNilai == null ? t.nilaiMax : Math.max(o.maxNilai, t.nilaiMax);
+    agg.set(t.phtKey, o);
+  }
+  const keys = new Set([...agg.keys(), ...realByKey.keys()]);
+  const rekap: PentanahanRekap[] = [...keys].map((k) => {
+    const a = agg.get(k) ?? { terukur: 0, baik: 0, buruk: 0, maxNilai: null };
+    const b = realByKey.get(k);
+    return {
+      phtKey: k, pht: b?.pht ?? towers.find((t) => t.phtKey === k)?.pht ?? k, pj: b?.pj ?? '—',
+      target: b?.target ?? 0, terukur: a.terukur, baik: a.baik, buruk: a.buruk,
+      pct: b?.target ? (a.terukur / b.target) * 100 : null, maxNilai: a.maxNilai,
+    };
+  }).sort((x, y) => y.buruk - x.buruk || y.terukur - x.terukur);
+  const target = realRows.reduce((a, x) => a + x.target, 0);
+  const baik = towers.filter((t) => t.kondisi === 'BAIK').length;
+  const buruk = towers.length - baik;
+  const monthsMap = new Map<string, { total: number; buruk: number }>();
+  for (const t of towers) {
+    if (!t.tanggal) continue;
+    const m = `${t.tanggal.getFullYear()}-${String(t.tanggal.getMonth() + 1).padStart(2, '0')}`;
+    const o = monthsMap.get(m) ?? { total: 0, buruk: 0 };
+    o.total += 1;
+    if (t.kondisi === 'BURUK') o.buruk += 1;
+    monthsMap.set(m, o);
+  }
+  const months = [...monthsMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => {
+    const [y, mo] = month.split('-');
+    return { month, label: `${MONTHS_SHORT[+mo - 1]} ${y}`, total: v.total, buruk: v.buruk };
+  });
+  return {
+    year, towers, rekap, target, total: towers.length, baik, buruk,
+    belumDiukur: Math.max(0, target - towers.length),
+    pct: target ? (towers.length / target) * 100 : 0,
+    flipped: towers.filter((t) => t.flipped).length,
+    months, sheetTotal, rawRows: raw.length,
+    belumDiukurRows: raw.length - measured.length,
+    missingRekap: realRows.filter((x) => !agg.has(x.phtKey)).map((x) => x.pht),
+  };
+}
+
+/* ---------- JADWAL 2026 ---------- */
+export interface PentanahanJadwalRow {
+  key: number; ultg: string; pht: string; phtKey: string; range: string; start: number; end: number;
+  minggu: string; bulan: string; mingguNo: number; label: string;
+}
+const JADWAL_MONTHS = ['FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER'];
+/** Minggu diturunkan dari URUTAN BARIS per penghantar: baris ke-i = Feb M1 + i
+    minggu (pola terverifikasi 291/291 baris dari warna fill FFCFE2F3 di export
+    XLSX; CSV tidak membawa warna). Nama bulan dibaca dari baris header (baris
+    1, forward-fill dari kolom pertama tiap blok 4 minggu); bila header tidak
+    terbaca, dipakai urutan Feb–Sep. Blok REALISASI (col 36+) masih kosong
+    (0 sel berwarna) — v1 hanya menampilkan minggu TARGET. */
+export function parsePentanahanJadwal(ultg: 'PEKALONGAN' | 'LAHAT', grid: Grid): { rows: PentanahanJadwalRow[]; warnings: string[] } {
+  const warnings: string[] = [];
+  // Nama bulan dari baris header 1, kolom 4–35 (blok TARGET).
+  const headerMonths: string[] = [];
+  let cur = '';
+  for (let c = 4; c <= 35; c++) {
+    const v = cell(grid[1], c).toUpperCase();
+    if (v) cur = v;
+    headerMonths.push(cur);
+  }
+  const monthAt = (weekIdx: number) => headerMonths[weekIdx] || JADWAL_MONTHS[Math.floor(weekIdx / 4)] || '';
+  if (new Set(headerMonths.filter(Boolean)).size < 8) warnings.push(`Header bulan ${ultg} tidak lengkap — label minggu memakai urutan Feb–Sep.`);
+  const rows: PentanahanJadwalRow[] = [];
+  const perPht = new Map<string, number>();
+  for (let k = 3; k < grid.length; k++) {
+    const r = grid[k];
+    const phtRaw = cell(r, 2);
+    if (!phtRaw) continue;
+    const nums = (cell(r, 3).match(/\d+/g) ?? []).map(Number);
+    if (nums.length < 2) { warnings.push(`Baris ${k + 1} ${ultg}: rentang tower "${cell(r, 3)}" tidak terbaca.`); continue; }
+    const phtKey = canonPht(phtRaw);
+    const idx = perPht.get(phtKey) ?? 0;
+    perPht.set(phtKey, idx + 1);
+    const bulan = monthAt(idx);
+    const mingguNo = (idx % 4) + 1;
+    rows.push({
+      key: k, ultg, pht: dispPht(phtRaw), phtKey, range: cell(r, 3), start: nums[0], end: nums[nums.length - 1],
+      minggu: `M${mingguNo}`, bulan, mingguNo, label: `${bulan} M${mingguNo}`,
+    });
+  }
+  for (const [k, n] of perPht) {
+    if (n > 32) warnings.push(`Penghantar ${k} (${ultg}): ${n} baris jadwal melebihi 32 minggu Feb–Sep — minggu dihitung dari urutan baris, periksa sheet.`);
+  }
+  return { rows, warnings };
+}
+
+/* ---------- CHECKLIST + REALISASI 2024 ---------- */
+export interface PentanahanChecklistRow { phtKey: string; pht: string; tower: string; status: 'V' | 'X'; }
+export interface PentanahanChecklistRekap {
+  phtKey: string; pht: string; pj: string; target: number;
+  v: number; x: number; pct: number | null; kendala: string;
+}
+export interface PentanahanData2024 {
+  rekap: PentanahanChecklistRekap[];
+  rows: PentanahanChecklistRow[];
+  target: number; v: number; x: number; pct: number;
+  /** Selisih CHECKLIST vs REALISASI 2024 (V/X per PHT) — catatan kualitas data. */
+  mismatch: string[];
+  checklistRows: number;
+}
+export function buildPentanahan2024(checklistGrid: Grid, realGrid: Grid): PentanahanData2024 {
+  // CHECKLIST 2024: PHT | TOWER | CHECKLIST (V/X). Dihitung per baris apa adanya.
+  const per = new Map<string, { pht: string; v: number; x: number }>();
+  const rows: PentanahanChecklistRow[] = [];
+  let checklistRows = 0;
+  for (let k = 1; k < checklistGrid.length; k++) {
+    const r = checklistGrid[k];
+    if (r.length < 3 || !cell(r, 0) || !cell(r, 1)) continue;
+    const key = canonPht(cell(r, 0));
+    const o = per.get(key) ?? { pht: dispPht(cell(r, 0)), v: 0, x: 0 };
+    const c = cell(r, 2).toUpperCase();
+    if (c !== 'V' && c !== 'X') continue;
+    if (c === 'V') o.v += 1; else o.x += 1;
+    per.set(key, o);
+    rows.push({ phtKey: key, pht: dispPht(cell(r, 0)), tower: cell(r, 1).replace(/\s+/g, ' '), status: c });
+    checklistRows += 1;
+  }
+  // REALISASI 2024: header baris 2 (PJ A | PHT B | V C | X D | TARGET F |
+  // REALISASI G | KENDALA J). Baris TOTAL (B='TRS UPT BENGKULU') dilewati —
+  // total dihitung dari CHECKLIST + target, bukan dari baris total sheet.
+  const hIdx = realGrid.findIndex((r) => cell(r, 0).toUpperCase() === 'PENANGGUNG JAWAB' && cell(r, 1).toUpperCase() === 'PHT');
+  const base = new Map<string, { pht: string; pj: string; target: number; kendala: string; vSheet: number | null; xSheet: number | null }>();
+  if (hIdx >= 0) {
+    for (let k = hIdx + 1; k < realGrid.length; k++) {
+      const r = realGrid[k];
+      const pht = cell(r, 1);
+      if (!pht || /TRS UPT/i.test(pht)) continue;
+      const target = intCell(cell(r, 5));
+      if (target == null) continue;
+      base.set(canonPht(pht), { pht: dispPht(pht), pj: cell(r, 0), target, kendala: cell(r, 9), vSheet: intCell(cell(r, 2)), xSheet: intCell(cell(r, 3)) });
+    }
+  }
+  const mismatch: string[] = [];
+  const keys = new Set([...per.keys(), ...base.keys()]);
+  const rekap: PentanahanChecklistRekap[] = [...keys].map((k) => {
+    const c = per.get(k) ?? { pht: base.get(k)?.pht ?? k, v: 0, x: 0 };
+    const b = base.get(k);
+    if (b && (b.vSheet != null && b.vSheet !== c.v || b.xSheet != null && b.xSheet !== c.x)) {
+      mismatch.push(`${c.pht}: CHECKLIST V ${c.v}/X ${c.x} vs REALISASI 2024 V ${b.vSheet ?? '—'}/X ${b.xSheet ?? '—'}`);
+    }
+    return {
+      phtKey: k, pht: c.pht, pj: b?.pj ?? '—', target: b?.target ?? c.v + c.x,
+      v: c.v, x: c.x, pct: (b?.target ?? c.v + c.x) ? (c.v / (b?.target ?? c.v + c.x)) * 100 : null,
+      kendala: b?.kendala ?? '',
+    };
+  }).sort((a, b) => b.v - a.v || b.x - a.x);
+  const target = rekap.reduce((a, r) => a + r.target, 0);
+  const v = rekap.reduce((a, r) => a + r.v, 0);
+  const x = rekap.reduce((a, r) => a + r.x, 0);
+  return { rekap, rows, target, v, x, pct: target ? (v / target) * 100 : 0, mismatch, checklistRows };
+}
 function parseDurasi(v: string): number | null {
   const s = v.trim();
   if (!s) return null;
