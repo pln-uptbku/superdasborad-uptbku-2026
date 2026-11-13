@@ -36,6 +36,9 @@ export interface ChartTheme {
   };
   legend: { color: string };
   text: string;
+  /** True bila chart dirender di dalam lembar export (SheetInner) — dipakai
+      SimplePie untuk label % di luar diagram + legenda bernilai. */
+  exportLabels?: boolean;
 }
 export const LIGHT_CHART_THEME: ChartTheme = {
   axis: '#4b6585',
@@ -48,6 +51,9 @@ export const LIGHT_CHART_THEME: ChartTheme = {
   },
   legend: { color: '#0b2340' },
   text: '#0b2340',
+  // Lembar export selalu memakai tema terang ini (SheetInner) — penanda bahwa
+  // chart sedang dirender untuk export, bukan dashboard.
+  exportLabels: true,
 };
 const ChartThemeCtx = React.createContext<ChartTheme | null>(null);
 export function ChartThemeProvider({ theme, children }: { theme: ChartTheme; children: React.ReactNode }) {
