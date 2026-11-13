@@ -485,7 +485,7 @@ export function parsePentanahanAsesmen(grid: Grid): PentanahanRawRow[] {
       ultg: cell(r, 5).toUpperCase(), alat: cell(r, 6).toUpperCase(),
       legA: num(cell(r, 8)), legB: num(cell(r, 9)), legC: num(cell(r, 10)), legD: num(cell(r, 11)),
       nilaiMax: num(cell(r, 16)), kondisiSheet: cell(r, 17).toUpperCase(),
-      rekomendasi: cell(r, 21).toUpperCase(), terpasang: cell(r, 22),
+      rekomendasi: cell(r, 21).toUpperCase(), terpasang: cell(r, 22).toUpperCase(),
     });
   }
   return out;
@@ -519,13 +519,19 @@ export interface PentanahanYearData {
   rawRows: number; // baris ASESMEN (termasuk BELUM DIUKUR)
   belumDiukurRows: number; // baris BELUM DIUKUR (tanpa pengukuran)
   missingRekap: string[]; // PHT di REALISASI tanpa baris ASESMEN
+  /** Tab REALISASI tahun ini ada (false = target/realisasi belum tersedia;
+      target dihitung 0, % Realisasi & Belum Diukur ditampilkan '—'). */
+  hasRealisasi: boolean;
 }
 
-/** REALISASI <tahun>: {phtKey → {pht, pj, target}} + baris TOTAL sheet. */
-function parsePentanahanRealisasi(grid: Grid): { rows: { phtKey: string; pht: string; pj: string; target: number }[]; total: PentanahanYearData['sheetTotal'] } {
-  const hIdx = grid.findIndex((r) => cell(r, 6).toUpperCase() === 'PHT');
+/** REALISASI <tahun>: {phtKey → {pht, pj, target}} + baris TOTAL sheet.
+ *  `null` (tab REALISASI tahun itu belum ada) → tidak ada baris/total;
+ *  target tahun dihitung 0 dan halaman menampilkan '—' untuk % Realisasi. */
+function parsePentanahanRealisasi(grid: Grid | null): { rows: { phtKey: string; pht: string; pj: string; target: number }[]; total: PentanahanYearData['sheetTotal'] } {
   const rows: { phtKey: string; pht: string; pj: string; target: number }[] = [];
   let total: PentanahanYearData['sheetTotal'] = null;
+  if (!grid) return { rows, total };
+  const hIdx = grid.findIndex((r) => cell(r, 6).toUpperCase() === 'PHT');
   if (hIdx < 0) return { rows, total };
   for (let k = hIdx + 1; k < grid.length; k++) {
     const r = grid[k];
@@ -542,8 +548,10 @@ function parsePentanahanRealisasi(grid: Grid): { rows: { phtKey: string; pht: st
   return { rows, total };
 }
 
-/** Satu tahun ASESMEN + REALISASI → tower unik + rekap + tren bulanan. */
-export function buildPentanahanYear(year: number, asesGrid: Grid, realGrid: Grid): PentanahanYearData {
+/** Satu tahun ASESMEN + REALISASI → tower unik + rekap + tren bulanan.
+ *  `realGrid` boleh null (tab REALISASI tahun itu belum ada): tower tetap
+ *  dibangun dari ASESMEN, target = 0, `hasRealisasi` = false. */
+export function buildPentanahanYear(year: number, asesGrid: Grid, realGrid: Grid | null): PentanahanYearData {
   const raw = parsePentanahanAsesmen(asesGrid);
   const measured = raw.filter((r) => r.kondisiSheet === 'BAIK' || r.kondisiSheet === 'BURUK');
   // Dedup per tower unik (kunci: PHT kanonik + string Lokasi penuh) —
@@ -617,12 +625,13 @@ export function buildPentanahanYear(year: number, asesGrid: Grid, realGrid: Grid
     months, sheetTotal, rawRows: raw.length,
     belumDiukurRows: raw.length - measured.length,
     missingRekap: realRows.filter((x) => !agg.has(x.phtKey)).map((x) => x.pht),
+    hasRealisasi: realGrid != null,
   };
 }
 
 /* ---------- JADWAL 2026 ---------- */
 export interface PentanahanJadwalRow {
-  key: number; ultg: string; pht: string; phtKey: string; range: string; start: number; end: number;
+  year: number; key: number; ultg: string; pht: string; phtKey: string; range: string; start: number; end: number;
   minggu: string; bulan: string; mingguNo: number; label: string;
 }
 const JADWAL_MONTHS = ['FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER'];
@@ -632,7 +641,7 @@ const JADWAL_MONTHS = ['FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGU
     1, forward-fill dari kolom pertama tiap blok 4 minggu); bila header tidak
     terbaca, dipakai urutan Feb–Sep. Blok REALISASI (col 36+) masih kosong
     (0 sel berwarna) — v1 hanya menampilkan minggu TARGET. */
-export function parsePentanahanJadwal(ultg: 'PEKALONGAN' | 'LAHAT', grid: Grid): { rows: PentanahanJadwalRow[]; warnings: string[] } {
+export function parsePentanahanJadwal(ultg: 'PEKALONGAN' | 'LAHAT', grid: Grid, year: number): { rows: PentanahanJadwalRow[]; warnings: string[] } {
   const warnings: string[] = [];
   // Nama bulan dari baris header 1, kolom 4–35 (blok TARGET).
   const headerMonths: string[] = [];
@@ -658,7 +667,7 @@ export function parsePentanahanJadwal(ultg: 'PEKALONGAN' | 'LAHAT', grid: Grid):
     const bulan = monthAt(idx);
     const mingguNo = (idx % 4) + 1;
     rows.push({
-      key: k, ultg, pht: dispPht(phtRaw), phtKey, range: cell(r, 3), start: nums[0], end: nums[nums.length - 1],
+      year, key: k, ultg, pht: dispPht(phtRaw), phtKey, range: cell(r, 3), start: nums[0], end: nums[nums.length - 1],
       minggu: `M${mingguNo}`, bulan, mingguNo, label: `${bulan} M${mingguNo}`,
     });
   }

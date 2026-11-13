@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { FALLBACK_TABS, fetchGrid, fetchGridRange, listTabs, SHEETS } from './sheets';
+import { FALLBACK_TABS, fetchGrid, fetchGridRange, listTabs, pentanahanTabs, SHEETS } from './sheets';
 import {
   GangguanRow, KerawananRow, NkoMonth, PenebanganRow, PentanahanData2024, PentanahanJadwalRow, PentanahanYearData, RekapGangguanRow, TegakanRow, TrendSeries,
   buildPentanahan2024, buildPentanahanYear, parseGangguan, parseKerawanan, parseNkoTab, parsePenebangan, parsePentanahanJadwal, parseRekapGangguan, parseTegakan, parseTrend,
@@ -18,6 +18,7 @@ export interface PentanahanData {
   years: Partial<Record<number, PentanahanYearData>>;
   availableYears: number[];
   jadwal: PentanahanJadwalRow[];
+  jadwalYears: number[];
   jadwalWarnings: string[];
   data2024: PentanahanData2024 | null;
 }
@@ -108,30 +109,35 @@ const loaders: { [K in SourceKey]: () => Promise<Sources[K]> } = {
   },
   async pentanahan() {
     const tabs = await listTabs(SHEETS.pentanahan);
-    const get = async (re: RegExp) => {
-      const t = tabs.find((x) => re.test(x.name.trim()));
-      return t ? fetchGrid(SHEETS.pentanahan, t.gid) : null;
-    };
-    const [a26, a25, r26, r25, jp, jl, c24, r24] = await Promise.all([
-      get(/^ASESMEN PENTANAHAN 2026/i), get(/^ASESMEN PENTANAHAN 2025/i),
-      get(/^REALISASI 2026/i), get(/^REALISASI 2025/i),
-      get(/JADWAL 2026 ULTG PEKALONGAN/i), get(/JADWAL 2026 ULTG LAHAT/i),
-      get(/^CHECKLIST 2024/i), get(/^REALISASI 2024/i),
+    const found = pentanahanTabs(tabs);
+    // Tahun ASESMEN ditemukan dari nama tab (ASESMEN PENTANAHAN YYYY) —
+    // tanpa daftar tahun hardcode. REALISASI YYYY dicari per tahun; bila
+    // belum ada, tahun itu tetap dibangun dari ASESMEN saja (target '—').
+    const yearGrids = await Promise.all(found.asesmen.map(async (a) => {
+      const r = found.realisasi.get(a.year);
+      const [ases, real] = await Promise.all([
+        fetchGrid(SHEETS.pentanahan, a.gid),
+        r ? fetchGrid(SHEETS.pentanahan, r.gid) : Promise.resolve(null),
+      ]);
+      return { year: a.year, ases, real };
+    }));
+    const jadwalGrids = await Promise.all(found.jadwal.map(async (j) => ({
+      ...j, grid: await fetchGrid(SHEETS.pentanahan, j.gid),
+    })));
+    const [c24, r24] = await Promise.all([
+      found.checklist2024 ? fetchGrid(SHEETS.pentanahan, found.checklist2024.gid) : Promise.resolve(null),
+      found.realisasi2024 ? fetchGrid(SHEETS.pentanahan, found.realisasi2024.gid) : Promise.resolve(null),
     ]);
     const years: Partial<Record<number, PentanahanYearData>> = {};
-    if (a26 && r26) years[2026] = buildPentanahanYear(2026, a26, r26);
-    if (a25 && r25) years[2025] = buildPentanahanYear(2025, a25, r25);
-    const jP = jp ? parsePentanahanJadwal('PEKALONGAN', jp) : null;
-    const jL = jl ? parsePentanahanJadwal('LAHAT', jl) : null;
+    for (const { year, ases, real } of yearGrids) years[year] = buildPentanahanYear(year, ases, real);
+    const jadwalParsed = jadwalGrids.map((j) => parsePentanahanJadwal(j.ultg, j.grid, j.year));
     const data2024 = c24 && r24 ? buildPentanahan2024(c24, r24) : null;
     const availableYears = [...Object.keys(years).map(Number), ...(data2024 ? [2024] : [])].sort((a, b) => b - a);
-    if (!availableYears.length && !(jP || jL)) throw new Error('Tab Pentanahan (ASESMEN/REALISASI/JADWAL/CHECKLIST) tidak ditemukan');
-    return {
-      years, availableYears,
-      jadwal: [...(jP?.rows ?? []), ...(jL?.rows ?? [])],
-      jadwalWarnings: [...(jP?.warnings ?? []), ...(jL?.warnings ?? [])],
-      data2024,
-    };
+    const jadwalYears = [...new Set(jadwalParsed.flatMap((p) => p.rows.map((r) => r.year)))].sort((a, b) => b - a);
+    const jadwal = jadwalParsed.flatMap((p) => p.rows);
+    const jadwalWarnings = jadwalParsed.flatMap((p) => p.warnings);
+    if (!availableYears.length && !jadwal.length) throw new Error('Tab Pentanahan (ASESMEN/REALISASI/JADWAL/CHECKLIST) tidak ditemukan');
+    return { years, availableYears, jadwal, jadwalYears, jadwalWarnings, data2024 };
   },
 };
 
