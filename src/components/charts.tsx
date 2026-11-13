@@ -84,13 +84,56 @@ export function SimplePie({ data, colors, inner = 55, animate = true }: { data: 
   const topIdx = data.reduce((bi, d, i) => (d.value > (data[bi]?.value ?? -1) ? i : bi), 0);
   const top = data[topIdx];
   const topPct = total > 0 && top ? (top.value / total) * 100 : null;
+  // Mode export (di dalam lembar ringkasan): label % di LUAR diagram + legenda bernilai.
+  // Dashboard TIDAK berubah — di luar sheet, t.exportLabels tidak terisi.
+  const exportLabels = !!t.exportLabels;
+  // Label luar per segmen (hanya export): % berwarna senada segmen + leader line
+  // berpanah dari label ke tepi segmen. Recharts memanggil renderer ini dengan
+  // geometri sektor (cx, cy, midAngle derajat, outerRadius px terurai).
+  const renderOutsideLabel = (p: any) => {
+    const v = p?.value as number | undefined;
+    const R = p?.outerRadius as number | undefined;
+    if (v == null || v <= 0 || total <= 0 || typeof R !== 'number' || !R || !Number.isFinite(p?.cx) || !Number.isFinite(p?.cy) || !Number.isFinite(p?.midAngle)) return null;
+    const name = String(p.name ?? '');
+    const idx = data.findIndex((d) => d.name === name);
+    const color = colorOf({ name }, idx < 0 ? 0 : idx);
+    const pct = (v / total) * 100;
+    const rad = (-(p.midAngle as number) * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const { cx, cy } = p as { cx: number; cy: number };
+    const sx = cx + R * cos, sy = cy + R * sin; // titik di tepi segmen
+    // Siku leader + ujung horizontal; y dijepit supaya label segmen di dekat
+    // jam 12/6 tidak terpotong tepi atas/bawah SVG (R = 80% dari setengah tinggi).
+    const halfH = R / 0.8;
+    const my0 = cy + (R + 10) * sin;
+    const my = Math.min(Math.max(my0, cy - halfH + 9), cy + halfH - 9);
+    const hx = cx + (R + 22) * cos;
+    const anchor = hx >= cx ? 'start' : 'end';
+    // Panah kecil di tepi segmen, mengarah dari label ke segmen (ke pusat).
+    const ax = -cos, ay = -sin, px = -ay, py = ax, w = 4.5;
+    const tip = `${sx + ax},${sy + ay}`;
+    const b1 = `${sx - ax * 8 + px * w},${sy - ay * 8 + py * w}`;
+    const b2 = `${sx - ax * 8 - px * w},${sy - ay * 8 - py * w}`;
+    return (
+      <g key={name}>
+        <polyline points={`${sx},${sy} ${cx + (R + 10) * cos},${my} ${hx},${my}`} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+        <polygon points={`${tip} ${b1} ${b2}`} fill={color} />
+        <text x={hx + (anchor === 'start' ? 5 : -5)} y={my} textAnchor={anchor} dominantBaseline="central" fontSize={13} fontWeight={800} fill={color}>
+          {fmtNum(pct, 1)}%
+        </text>
+      </g>
+    );
+  };
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1">
-        <div className="relative mx-auto h-full" style={{ aspectRatio: '1 / 1', maxWidth: '100%' }}>
+        {/* Mode export: wadah lebih lebar dari tinggi supaya label luar di kiri/kanan
+            diagram muat (diagram sendiri tetap setinggi area chart). */}
+        <div className="relative mx-auto h-full" style={{ aspectRatio: exportLabels ? '2.2 / 1' : '1 / 1', maxWidth: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={`${inner}%`} outerRadius="80%" paddingAngle={2} stroke="none" isAnimationActive={animate}>
+              <Pie data={data} dataKey="value" nameKey="name" innerRadius={`${inner}%`} outerRadius="80%" paddingAngle={2} stroke="none" isAnimationActive={animate}
+                label={exportLabels ? renderOutsideLabel : undefined} labelLine={false}>
                 {data.map((d, i) => <Cell key={d.name} fill={colorOf(d, i)} />)}
               </Pie>
               <Tooltip {...t.tooltip} formatter={(v: number, n: string) => [`${fmtNum(v)} (${total ? ((v / total) * 100).toFixed(1).replace('.', ',') : 0}%)`, n]} />
@@ -110,6 +153,9 @@ export function SimplePie({ data, colors, inner = 55, animate = true }: { data: 
         {data.map((d, i) => (
           <span key={d.name} className="inline-flex items-center gap-1.5 text-xs" style={{ color: t.legend.color }}>
             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(d, i) }} />{d.name}
+            {exportLabels && total > 0 && (
+              <span> · <b style={{ color: colorOf(d, i) }}>{fmtNum((d.value / total) * 100, 1)}%</b> · {fmtNum(d.value)}</span>
+            )}
           </span>
         ))}
       </div>
