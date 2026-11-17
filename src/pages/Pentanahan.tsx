@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PlugZap } from 'lucide-react';
 import { PentanahanData, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { PentanahanChecklistRekap, PentanahanChecklistRow, PentanahanJadwalRow, PentanahanTower, PentanahanYearData } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Search, Select, SortableTable, StatCard, Tabs, useChartTheme } from '../components/ui';
@@ -116,6 +117,59 @@ function Body({ data }: { data: PentanahanData }) {
   const sliceLabel = !y ? '' : f.ultg !== 'Semua' && f.pht !== 'Semua' ? `${f.pht} · ${f.ultg}` : f.ultg !== 'Semua' ? f.ultg : f.pht !== 'Semua' ? f.pht : `tahun ${y.year}`;
   const filterActive = f.ultg !== 'Semua' || f.pht !== 'Semua' || f.kondisi !== 'Semua' || f.alat !== 'Semua' || f.rekomendasi !== 'Semua' || f.terpasang !== 'Semua' || f.q.trim() !== '';
   const filterNote = filterActive ? ` · terfilter: ${[f.ultg !== 'Semua' && f.ultg, f.pht !== 'Semua' && f.pht, f.kondisi !== 'Semua' && f.kondisi, f.alat !== 'Semua' && f.alat, f.rekomendasi !== 'Semua' && `Rekomendasi ${f.rekomendasi}`, f.terpasang !== 'Semua' && `Terpasang ${f.terpasang}`, f.q.trim() && `"${f.q.trim()}"`].filter(Boolean).join(' · ')}` : '';
+
+  // Konteks AI Assistant — dari nilai yang SAMA dengan yang dirender di atas
+  // (kartu KPI + tabel terfilter). % Realisasi & Belum Diukur mengikuti slice
+  // STRUKTURAL (tahun + ULTG + Penghantar) seperti kartunya — bukan angka
+  // tahun penuh bila filter ULTG/Penghantar aktif.
+  const pentCtx = useMemo(() => {
+    if (!y && !(is2024 && data.data2024)) return null;
+    if (is2024 && data.data2024) {
+      const d = data.data2024;
+      return {
+        page: 'pentanahan' as const,
+        tahun: 2024,
+        ringkasan: { target: d.target, sudahDiukurV: d.v, belumDiukurX: d.x, persenTerukur: d.pct },
+        sumber: ['CHECKLIST 2024', 'REALISASI 2024'],
+        diakses: todayId(),
+      };
+    }
+    if (!y) return null;
+    const burukTop = [...filtered]
+      .filter((t) => t.kondisi === 'BURUK')
+      .sort((a, b) => (b.nilaiMax ?? 0) - (a.nilaiMax ?? 0))
+      .slice(0, 5)
+      .map((t) => ({ lokasi: t.lokasi, nilaiMax: t.nilaiMax }));
+    const filterAktif: Record<string, string> = {};
+    if (f.ultg !== 'Semua') filterAktif.ultg = f.ultg;
+    if (f.pht !== 'Semua') filterAktif.pht = f.pht;
+    if (f.kondisi !== 'Semua') filterAktif.kondisi = f.kondisi;
+    if (f.alat !== 'Semua') filterAktif.alat = f.alat;
+    if (f.rekomendasi !== 'Semua') filterAktif.rekomendasi = f.rekomendasi;
+    if (f.terpasang !== 'Semua') filterAktif.terpasang = f.terpasang;
+    return {
+      page: 'pentanahan' as const,
+      tahun: year,
+      filter: filterAktif,
+      ringkasan: {
+        totalDiukur: filtered.length,
+        baik: baikF,
+        buruk: burukF,
+        persenRealisasi: slice && slice.target ? Math.round(slice.pct * 10) / 10 : null,
+        belumDiukur: slice && slice.target ? slice.belum : null,
+        target: slice && slice.target ? slice.target : null,
+        cakupan: sliceLabel,
+        catatan: '% Realisasi & Belum Diukur mengikuti slice struktural (tahun + ULTG/Penghantar) — lihat cakupan; filter Kondisi/Alat/Rekomendasi/Terpasang/pencarian tidak mengubahnya.',
+        terburuk: burukTop,
+      },
+      sumber: [`ASESMEN PENTANAHAN ${year}`, ...(y.hasRealisasi ? [`REALISASI ${year}`] : [])],
+      diakses: todayId(),
+    };
+  }, [y, is2024, data, year, filtered, baikF, burukF, f, slice, sliceLabel]);
+  useEffect(() => {
+    setAssistantContext('pentanahan', pentCtx);
+    return () => setAssistantContext('pentanahan', null);
+  }, [pentCtx]);
   return (
     <div className="space-y-5">
       <PageHeader

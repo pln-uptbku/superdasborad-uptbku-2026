@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { DataProvider, PageSourcesProvider, useData, usePageSourceKeys } from './lib/data';
 import { LoadingScreen, ThemeProvider, UptLogo, useTheme } from './components/ui';
 import { ExportMenu, ExportProvider } from './lib/export';
+import AiAssistant from './components/AiAssistant';
 // Setiap halaman dimuat terpisah (code splitting) supaya loading awal lebih ringan.
 const Beranda = lazy(() => import('./pages/Beranda'));
 const Home = lazy(() => import('./pages/Home'));
@@ -205,6 +206,8 @@ function Shell() {
           <footer className="text-center text-[11px] t-muted py-8">© {new Date().getFullYear()} PLN UPT Bengkulu · Dikembangkan oleh <a href="https://www.linkedin.com/in/febbyutomo/" target="_blank" rel="noopener noreferrer" className="hover:underline">Febby P. Utomo</a></footer>
         </main>
       </div>
+      {/* AI Assistant demo — tombol mengambang + panel chat (semua halaman). */}
+      <AiAssistant />
     </div>
   );
 }
