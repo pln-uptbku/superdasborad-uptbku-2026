@@ -52,6 +52,7 @@ export interface ChatMsg {
   content: string;
   sources?: string[];
   provider?: string;
+  providerLabel?: string;
   error?: boolean;
 }
 
@@ -59,6 +60,7 @@ export interface AskResult {
   answer: string;
   sources: string[];
   provider: string;
+  providerLabel?: string;
 }
 
 /** Kirim pertanyaan + konteks halaman aktif + riwayat (maks 6 pesan). */
@@ -88,5 +90,6 @@ export async function askAssistant(question: string, history: ChatMsg[]): Promis
     answer: String(data.answer || ''),
     sources: Array.isArray(data.sources) ? data.sources : [],
     provider: String(data.provider || ''),
+    providerLabel: typeof data.providerLabel === 'string' ? data.providerLabel : undefined,
   };
 }

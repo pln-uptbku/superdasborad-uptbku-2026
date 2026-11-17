@@ -56,12 +56,12 @@ function Avatar({ size, working }: { size: number; working?: boolean }) {
   );
 }
 
-function ProviderBadge({ provider }: { provider?: string }) {
+function ProviderBadge({ provider, providerLabel }: { provider?: string; providerLabel?: string }) {
   if (!provider || provider === 'none') return null;
-  const label = provider === 'openrouter' ? 'via OpenRouter (cadangan)' : 'via NVIDIA (demo)';
+  const name = providerLabel || 'AI';
   return (
-    <span className="ml-2 text-[10px] t-muted" title={`Dijawab oleh ${label}`}>
-      {label}
+    <span className="ml-2 text-[10px] t-muted" title={`Dijawab oleh ${name}`}>
+      Powered by {name}
     </span>
   );
 }
@@ -117,7 +117,7 @@ export default function AiAssistant() {
     setLoading(true);
     try {
       const r = await askAssistant(q, messages);
-      setMessages((m) => [...m, { role: 'assistant', content: r.answer, sources: r.sources, provider: r.provider }]);
+      setMessages((m) => [...m, { role: 'assistant', content: r.answer, sources: r.sources, provider: r.provider, providerLabel: r.providerLabel }]);
     } catch (e) {
       setMessages((m) => [...m, { role: 'assistant', content: e instanceof Error ? e.message : 'Gagal menghubungi AI.', error: true }]);
     } finally {
@@ -221,7 +221,7 @@ export default function AiAssistant() {
                   {m.role === 'assistant' && !m.error && (
                     <div className="mt-1.5 text-[11px] t-muted">
                       {m.sources && m.sources.length > 0 && <>Sumber: {m.sources.join(' · ')}</>}
-                      <ProviderBadge provider={m.provider} />
+                      <ProviderBadge provider={m.provider} providerLabel={m.providerLabel} />
                     </div>
                   )}
                 </div>

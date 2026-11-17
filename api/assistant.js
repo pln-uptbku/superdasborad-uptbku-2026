@@ -1,7 +1,7 @@
 // AI Assistant demo — Dashboard UPT Bengkulu.
 //
 // POST /api/assistant { page, question, context, history }
-//   -> { answer, sources, usage, provider, ms }
+//   -> { answer, sources, usage, provider, providerLabel, ms }
 // GET  /api/assistant -> { ok, configured }
 //
 // Primer: NVIDIA Build (trial) — kunci dari env var LLM_API_KEY.
@@ -9,7 +9,8 @@
 //   Bila primer gagal (error HTTP / timeout / tanpa respons) -> coba
 //   cadangan SEKALI. Bila kunci cadangan tidak ada -> jalan NVIDIA-only.
 //   LLM_PROVIDER=openrouter memaksa cadangan sebagai primer.
-//   Response selalu membawa `provider` (yang akhirnya menjawab).
+//   Response selalu membawa `provider` (slot yang akhirnya menjawab) dan
+//   `providerLabel` (nama model untuk badge — diturunkan dari model, bukan slot).
 // Kunci TIDAK PERNAH ada di kode/repo/bundle — hanya env var Vercel.
 // Rate limit: 5/menit + 20/jam per IP, cap global 500/hari (in-memory,
 // perkiraan — fungsi serverless tidak berbagi state antar instans).
@@ -48,6 +49,22 @@ const DEFAULTS = {
     model: 'dealignai/deepseek-v4.1-flash-uncensored-fp8:free',
   },
 };
+
+// Label tampilan badge ("Powered by ...") diturunkan dari MODEL yang
+// benar-benar menjawab — bukan dari nama slot provider — supaya badge tidak
+// pernah menyebut provider yang salah bila model diganti lewat env var.
+// Model yang tidak dikenali -> 'AI' (generik, bukan nama provider).
+function providerLabelForModel(model) {
+  const m = String(model || '').toLowerCase();
+  if (m.includes('deepseek')) return 'DeepSeek';
+  if (m.includes('qwen')) return 'Qwen';
+  if (m.includes('llama')) return 'Llama';
+  if (m.includes('muse')) return 'Muse';
+  if (m.includes('claude')) return 'Claude';
+  if (m.includes('gpt') || m.includes('openai')) return 'OpenAI';
+  if (m.includes('gemini')) return 'Gemini';
+  return null;
+}
 
 const ipHits = new Map(); // ip -> number[] (epoch ms)
 let dayCount = { date: '', count: 0 };
@@ -200,7 +217,7 @@ export default async function handler(req, res) {
     if (!primary.apiKey) {
       const msg = primary.name === 'openrouter'
         ? 'AI Assistant belum diaktifkan: kunci cadangan (LLM_API_KEY_BACKUP) belum dipasang.'
-        : 'AI Assistant belum diaktifkan: kunci NVIDIA (LLM_API_KEY) belum dipasang.';
+        : 'AI Assistant belum diaktifkan: kunci utama (LLM_API_KEY) belum dipasang.';
       return res.status(503).json({ error: msg });
     }
 
@@ -225,6 +242,7 @@ export default async function handler(req, res) {
           sources,
           usage: r.usage ? { inputTokens: r.usage.prompt_tokens ?? null, outputTokens: r.usage.completion_tokens ?? null } : null,
           provider: a.name,
+          providerLabel: providerLabelForModel(a.model) || 'AI',
           ms: Date.now() - t0,
         });
       } catch (e) {
