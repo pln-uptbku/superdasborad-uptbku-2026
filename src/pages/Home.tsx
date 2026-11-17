@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Activity, Axe, Gauge, TreePine, TrendingDown, Map as MapIcon, LayoutGrid } from 'lucide-react';
 import { SourceState, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { GangguanRow, KerawananRow, NkoMonth, pctOf } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ErrorState, LIGHT_CHART_THEME, LoadingScreen, PageHeader, SortableTable, StatCard, Tabs, groupSum, useChartTheme } from '../components/ui';
@@ -61,6 +62,42 @@ export default function Home() {
   // (tidak ada angka yang dikarang: NKO, hitung status indikator, gangguan OPEN).
   const lowProb = m ? lowestProblem(m) : null;
   const nkoVal = m?.total110 != null ? Math.min(110, m.total110) : null;
+
+  // Konteks AI Assistant — dari nilai yang SAMA dengan yang dirender di atas
+  // (kartu KPI + status KPI), termasuk bulan yang dipilih.
+  const dashboardCtx = useMemo(() => {
+    if (nko.status !== 'ok' || !m) return null;
+    const status = statusCounts(m);
+    const p = pen.data ? penebanganYear(pen.data.rows, year) : null;
+    const tRows = teg.data?.rows;
+    const low = lowestProblem(m);
+    const rows = ggn.data?.rows ?? [];
+    return {
+      page: 'dashboard' as const,
+      tahun: year,
+      filter: { bulan: `${MONTHS_LONG[m.monthNo - 1]} ${year}` },
+      ringkasan: {
+        bulan: MONTHS_LONG[m.monthNo - 1],
+        nko110: m.total110 != null ? Math.min(110, m.total110) : null,
+        nko100: m.total100 ?? null,
+        statusKpi: { BAIK: status.BAIK ?? 0, MASALAH: status.MASALAH ?? 0, HATI_HATI: status['HATI-HATI'] ?? 0 },
+        totalGangguan: rows.length,
+        gangguanTahunBerjalan: rows.filter((r) => (r.tahun || String(r.tanggal?.getFullYear() ?? '')).trim() === String(year)).length,
+        gangguanOpenUpt: rows.filter((r) => r.statusUpt === 'OPEN').length,
+        gangguanOverdue: rows.filter((r) => r.overdueUpt || r.overdueFois).length,
+        penebangan: p ? { total: p.total, tebang: p.tebang, pangkas: p.pangkas, record: p.records } : null,
+        tegakanKritis: tRows ? sumJml(tRows, 'KRITIS') : null,
+        tegakanTotal: tRows ? sumJml(tRows) : null,
+        kinerjaTerendah: low ? { nama: low.name, nilai: pctOf(low), status: low.status } : null,
+      },
+      sumber: [`NKO ${m.monthNo}.${MONTHS_SHORT[m.monthNo - 1]}`, 'UPTBKU (gangguan)', 'TARIKAN NEW SRINTAMI (tegakan)'],
+      diakses: todayId(),
+    };
+  }, [nko.status, m, year, ggn.data, pen.data, teg.data]);
+  useEffect(() => {
+    setAssistantContext('dashboard', dashboardCtx);
+    return () => setAssistantContext('dashboard', null);
+  }, [dashboardCtx]);
 
   if (nko.status === 'loading' && teg.status !== 'ok' && ggn.status !== 'ok' && !months.length) return <LoadingScreen text="Memuat Dashboard…" />;
   const allErr = [nko, teg, pen, ggn].every((s) => s.status === 'error');
