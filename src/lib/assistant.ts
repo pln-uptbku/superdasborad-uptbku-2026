@@ -121,6 +121,23 @@ export interface AskResult {
   fromFaq?: boolean;
 }
 
+/** Ambil pesan galat sebagai string. Field error/detail dari respons BISA berupa
+ *  objek (mis. galat gateway Vercel: {"error":{"code":...,"message":...}}) —
+ *  bila dilempar mentah ke `new Error()`, pesannya jadi "[object Object]".
+ *  Untuk objek, pakai .message bila ada, kalau tidak JSON-nya. */
+function errorMessage(data: any, status: number): string {
+  const raw = data && (data.error || data.detail);
+  if (typeof raw === 'string' && raw) return raw;
+  if (raw && typeof raw === 'object') {
+    if (typeof (raw as any).message === 'string' && (raw as any).message) return (raw as any).message;
+    try {
+      const s = JSON.stringify(raw);
+      if (s) return s;
+    } catch { /* abaikan */ }
+  }
+  return `Gagal (${status})`;
+}
+
 /** Kirim pertanyaan + konteks halaman aktif + riwayat (maks 6 pesan). */
 export async function askAssistant(question: string, history: ChatMsg[]): Promise<AskResult> {
   const pathname = window.location.pathname;
@@ -142,10 +159,15 @@ export async function askAssistant(question: string, history: ChatMsg[]): Promis
   let data: any = null;
   try { data = await res.json(); } catch { /* abaikan */ }
   if (!res.ok) {
-    throw new Error((data && (data.error || data.detail)) || `Gagal (${res.status})`);
+    throw new Error(errorMessage(data, res.status));
+  }
+  if (data && typeof data.answer !== 'string') {
+    // Jangan pernah menampilkan "[object Object]": jawaban non-string adalah
+    // respons tak valid — tampilkan sebagai galat yang terbaca, bukan objek.
+    throw new Error('Respons AI tidak valid');
   }
   return {
-    answer: String(data.answer || ''),
+    answer: data.answer || '',
     sources: Array.isArray(data.sources) ? data.sources : [],
     provider: String(data.provider || ''),
     providerLabel: typeof data.providerLabel === 'string' ? data.providerLabel : undefined,
