@@ -111,6 +111,10 @@ export interface ChatMsg {
   /** true bila jawaban berasal dari FAQ terverifikasi (tanpa LLM). */
   fromFaq?: boolean;
   error?: boolean;
+  /** Pertanyaan pengguna yang dijawab balon ini (untuk vote + share). */
+  question?: string;
+  /** Vote perangkat ini untuk jawaban ini (optimistis, sesi berjalan). */
+  vote?: 'up' | 'down';
 }
 
 export interface AskResult {
@@ -138,24 +142,49 @@ function errorMessage(data: any, status: number): string {
   return `Gagal (${status})`;
 }
 
+/**
+ * Batas tunggu klien untuk satu pertanyaan (59 dtk). Harus LEBIH BESAR dari
+ * anggaran server terburuk (~52 dtk LLM + maks. 1,5 dtk tulis log + overhead
+ * jaringan/cold start) supaya jawaban yang berhasil di percobaan kedua
+ * server tidak dibatalkan klien, tapi tetap TERBATAS supaya fungsi yang
+ * menggantung tidak memutar status "memikirkan jawaban" selamanya.
+ * Sebelumnya: tanpa batas (fetch menunggu tanpa abort) — kegagalan ~60 dtk
+ * yang terlihat sejauh ini adalah respons galat server, bukan abort klien.
+ */
+const ASK_TIMEOUT_MS = 59000;
+const ASK_TIMEOUT_MESSAGE = 'AI sedang tidak bisa menjawab — coba lagi sebentar lagi.';
+
 /** Kirim pertanyaan + konteks halaman aktif + riwayat (maks 6 pesan). */
 export async function askAssistant(question: string, history: ChatMsg[]): Promise<AskResult> {
   const pathname = window.location.pathname;
   const page = routeToPage(pathname);
   const context = page ? getAssistantContext(page) : null;
-  const res = await fetch('/api/assistant', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      page: page ?? pathname,
-      question,
-      context,
-      history: history
-        .filter((m) => !m.error)
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content })),
-    }),
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ASK_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        page: page ?? pathname,
+        question,
+        context,
+        history: history
+          .filter((m) => !m.error)
+          .slice(-6)
+          .map((m) => ({ role: m.role, content: m.content })),
+      }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    // Abort klien (melewati 59 dtk) -> pesan galat yang sama dengan galat
+    // server, bukan "AbortError" mentah. Galat jaringan lain diteruskan.
+    if (e && (e as any).name === 'AbortError') throw new Error(ASK_TIMEOUT_MESSAGE);
+    throw e;
+  }
+  clearTimeout(timer);
   let data: any = null;
   try { data = await res.json(); } catch { /* abaikan */ }
   if (!res.ok) {
@@ -173,6 +202,55 @@ export async function askAssistant(question: string, history: ChatMsg[]): Promis
     providerLabel: typeof data.providerLabel === 'string' ? data.providerLabel : undefined,
     fromFaq: data.fromFaq === true,
   };
+}
+
+/**
+ * Vote up/down untuk satu jawaban — Inkubasi 2. Dikirim lewat POST
+ * /api/assistant yang sama (action:'vote', BUKAN endpoint baru); vote
+ * dicatat server-side sebagai baris log (kolom vote). Mengembalikan false
+ * bila gagal (UI sudah optimistis — kegagalan vote tidak mengganggu chat).
+ * Vote TIDAK makan kuota tanya (server membatasinya terpisah: 10/menit/IP).
+ */
+export interface VoteMeta {
+  question: string;
+  vote: 'up' | 'down';
+  page?: string;
+  answered?: boolean;
+  fromFaq?: boolean;
+  provider?: string;
+  answer?: string;
+}
+
+export async function sendVote(meta: VoteMeta): Promise<boolean> {
+  try {
+    const res = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'vote', ...meta }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "Pertanyaan populer" bersama — Inkubasi 2. Dibaca dari GET /api/assistant
+ * (pola tab FAQ Sheet yang sudah ditinjau admin, bila Sheet terkonfigurasi).
+ * [] bila tidak ada -> widget memakai fallback Inkubasi 1 (pola FAQ statis
+ * + frekuensi perangkat lokal).
+ */
+export async function fetchServerPopular(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/assistant', { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.popular)
+      ? (data.popular as unknown[]).filter((s): s is string => typeof s === 'string').slice(0, 3)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
