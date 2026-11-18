@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CheckCircle2, AlertTriangle, XCircle, Gauge } from 'lucide-react';
 import { useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { NkoMonth, NkoRow, pctOf } from '../lib/parsers';
 import { fmtAuto, fmtNum, MONTHS_LONG, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, Gate, PageHeader, Select, SortableTable, StatCard, useChartTheme } from '../components/ui';
@@ -82,6 +83,36 @@ function KinerjaBody({ months, updatedAt }: { months: NkoMonth[]; updatedAt?: Da
   const mb = months.find((x) => x.monthNo === perBulan) ?? latest;
   const counts = statusCounts(m);
   const t = useChartTheme();
+
+  // Konteks AI Assistant — dari nilai yang SAMA dengan yang dirender
+  // (kartu KPI bulan terpilih, tabel indikator, kinerja merah, tren NKO).
+  const kinerjaCtx = useMemo(() => {
+    const year = new Date().getFullYear();
+    const ind = indicatorsOf(m).filter((r) => !r.penalty);
+    const nonBaik = ind.filter((r) => r.status !== 'BAIK');
+    const low = lowestProblem(m);
+    return {
+      page: 'kinerja' as const,
+      tahun: year,
+      filter: { bulan: `${MONTHS_LONG[m.monthNo - 1]} ${year}` },
+      ringkasan: {
+        bulan: MONTHS_LONG[m.monthNo - 1],
+        nko110: m.total110 != null ? Math.min(110, m.total110) : null,
+        nko100: m.total100 ?? null,
+        statusKpi: { BAIK: counts.BAIK ?? 0, MASALAH: counts.MASALAH ?? 0, HATI_HATI: counts['HATI-HATI'] ?? 0 },
+        indikatorBermasalah: nonBaik.map((r) => ({ nama: r.name, persen110: r.pct110, nilai110: r.nilai110, status: r.status })),
+        kinerjaMerah: m.merah.map((r) => ({ indikator: r.indikator, penyebab: r.penyebab, status: r.status, tindakLanjut: r.lastProgress })),
+        kinerjaTerendah: low ? { nama: low.name, nilai110: low.pct110, status: low.status } : null,
+        trenNko110: months.map((x) => ({ bulan: MONTHS_SHORT[x.monthNo - 1], nilai: x.total110 != null ? Math.min(110, x.total110) : null })),
+      },
+      sumber: [`NKO ${m.tab}`],
+      diakses: todayId(),
+    };
+  }, [m, months, counts]);
+  useEffect(() => {
+    setAssistantContext('kinerja', kinerjaCtx);
+    return () => setAssistantContext('kinerja', null);
+  }, [kinerjaCtx]);
 
   // ----- trend -----
   const indicators = indicatorsOf(latest).filter((r) => !r.penalty);

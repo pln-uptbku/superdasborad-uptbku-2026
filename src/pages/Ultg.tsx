@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, FileDown, Loader2, Zap } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { fetchGrid, listTabs, SHEETS } from '../lib/sheets';
 import { parseAset, parseRekap, Ultg as UltgName, UltgEvent } from '../lib/ultg';
 import { buildUltgPdf, PdfAssets, themeFor, UltgPdfPart } from '../lib/ultgPdf';
@@ -260,6 +261,40 @@ export default function Ultg() {
 
   const bulan = LONG[sel - 1] ?? '';
   const parts: UltgPdfPart[] = data ? (['PEKALONGAN', 'LAHAT'] as UltgName[]).map((u) => ({ name: u, events: data.events.filter((e) => e.ultg === u), kinerja: data.kinerja.filter((e) => e.ultg === u) })) : [];
+
+  // Konteks AI Assistant — dari data rekap bulan terpilih (sama dengan panel).
+  const ultgCtx = useMemo(() => {
+    if (!data) return null;
+    const byUltg = (u: UltgName) => {
+      const ev = data.events.filter((e) => e.ultg === u);
+      return { total: ev.length, reclose: ev.filter((e) => e.type === 'Reclose').length, trip: ev.filter((e) => e.type === 'Trip').length, masukKinerja: data.kinerja.filter((e) => e.ultg === u).length };
+    };
+    const terbaru = [...data.events].sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)).slice(0, 5)
+      .map((e) => ({ tanggal: e.date, penghantar: e.line, jenis: e.type, penyebab: e.cause }));
+    const perPht = new Map<string, number>();
+    for (const e of data.events) perPht.set(e.line, (perPht.get(e.line) ?? 0) + 1);
+    return {
+      page: 'ultg' as const,
+      filter: { bulan: `${bulan} ${new Date().getFullYear()}` },
+      ringkasan: {
+        bulan,
+        totalGangguan: data.events.length,
+        reclose: data.events.filter((e) => e.type === 'Reclose').length,
+        trip: data.events.filter((e) => e.type === 'Trip').length,
+        masukKinerja: data.kinerja.length,
+        belumTerpetakan: data.unmapped.length,
+        perUltg: { PEKALONGAN: byUltg('PEKALONGAN'), LAHAT: byUltg('LAHAT') },
+        gangguanTerbaru: terbaru,
+        penghantarTersering: [...perPht.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([pht, n]) => ({ penghantar: pht, kejadian: n })),
+      },
+      sumber: [`NKO ${sel} (REKAP GANGGUAN)`, 'ASET'],
+      diakses: todayId(),
+    };
+  }, [data, sel, bulan]);
+  useEffect(() => {
+    setAssistantContext('ultg', ultgCtx);
+    return () => setAssistantContext('ultg', null);
+  }, [ultgCtx]);
   const exportPdf = async (mode: 'ALL' | UltgName) => {
     const nko = nkoSrc.data?.months.find((x) => x.monthNo === sel);
     const { doc, fname } = await buildUltgPdf({ parts, mode, monthNo: sel, year: new Date().getFullYear(), nko, assets: await loadAssets() });

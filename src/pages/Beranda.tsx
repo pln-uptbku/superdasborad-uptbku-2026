@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Axe, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Gauge, LayoutDashboard, ShieldAlert } from 'lucide-react';
 import { usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { fmtNum, MONTHS_LONG } from '../lib/sheets';
 import { C, Card, StatCard } from '../components/ui';
 import { GlossarySection, Term } from '../components/Glossary';
@@ -139,6 +140,34 @@ export default function Beranda() {
   const totalInd = counts ? counts.BAIK + counts.MASALAH + counts['HATI-HATI'] : 0;
   const lowProb = m ? lowestProblem(m) : null;
   const nkoVal = m?.total110 != null ? Math.min(110, m.total110) : null;
+
+  // Konteks AI Assistant — dari nilai yang SAMA dengan yang dirender di hero
+  // (NKO bulan terbaru, status KPI, gangguan OPEN) + identitas aset UPT.
+  const berandaCtx = useMemo(() => {
+    if (!m) return null;
+    return {
+      page: 'beranda' as const,
+      tahun: year,
+      filter: { bulan: `${MONTHS_LONG[m.monthNo - 1]} ${year}` },
+      ringkasan: {
+        bulan: MONTHS_LONG[m.monthNo - 1],
+        nko110: nkoVal,
+        nko100: m.total100 ?? null,
+        statusKpi: counts ? { BAIK: counts.BAIK ?? 0, MASALAH: counts.MASALAH ?? 0, HATI_HATI: counts['HATI-HATI'] ?? 0 } : null,
+        totalIndikator: totalInd,
+        kinerjaTerendah: lowProb ? { nama: lowProb.name, nilai110: lowProb.pct110, status: lowProb.status } : null,
+        gangguanTotal: gRows.length,
+        gangguanOpenUpt: openUpt,
+        aset: { garduInduk: 15, sirkit: 33, trafo: '34 unit / 2.475 MVA', ultg: ['LAHAT', 'PEKALONGAN'], tower: '2.424 buah / 1.582,72 kms', pegawai: '90 pegawai + 247 TAD' },
+      },
+      sumber: [`NKO ${m.tab}`, 'UPTBKU (gangguan)'],
+      diakses: todayId(),
+    };
+  }, [m, year, counts, totalInd, lowProb, nkoVal, gRows, openUpt]);
+  useEffect(() => {
+    setAssistantContext('beranda', berandaCtx);
+    return () => setAssistantContext('beranda', null);
+  }, [berandaCtx]);
 
   if (nko.status === 'loading' && ggn.status !== 'ok' && !months.length) return <div className="flex items-center justify-center" style={{ minHeight: 320 }}><div className="w-10 h-10 rounded-full border-2 border-t-transparent refresh-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} /></div>;
   const allErr = [nko, ggn].every((s) => s.status === 'error');

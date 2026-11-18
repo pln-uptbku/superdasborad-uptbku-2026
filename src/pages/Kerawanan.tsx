@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { KerawananData, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { KerawananRow } from '../lib/parsers';
 import { fmtNum, num, num0 } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
@@ -67,6 +68,29 @@ function Body({ data }: { data: KerawananData }) {
     const perPht = groupSum(scoped, (r) => r.pht);
     return { rawan, petir, hewan, pohon, kritis, perPht };
   }, [scoped]);
+
+  // Konteks AI Assistant — ringkasan umum (sama dengan lembar export) +
+  // filter global ULTG/PHT; tidak tergantung tab aktif.
+  const kerawananCtx = useMemo(() => ({
+    page: 'kerawanan' as const,
+    filter: { ultg: g.ultg, penghantar: g.pht, pencarian: g.q || '—', tab },
+    ringkasan: {
+      totalTower: scoped.length,
+      towerRawan: sheetData.rawan.length,
+      gangguanPetir: sheetData.petir.length,
+      gangguanHewan: sheetData.hewan.length,
+      gangguanPohon: sheetData.pohon.length,
+      kritisMayor: sheetData.kritis.length,
+      towerKritisMayor: sheetData.kritis.slice(0, 6).map((r) => ({ tower: r.tower.replace(/^TOWER\s+/i, ''), penghantar: r.pht, ultg: r.ultg })),
+      perPhtTeratas: sheetData.perPht.slice(0, 10).map((d) => ({ penghantar: d.name, tower: d.value })),
+    },
+    sumber: ['SELURUH DATA'],
+    diakses: todayId(),
+  }), [scoped, sheetData, g, tab]);
+  useEffect(() => {
+    setAssistantContext('kerawanan', kerawananCtx);
+    return () => setAssistantContext('kerawanan', null);
+  }, [kerawananCtx]);
   const sheetEl = (
     <ExportSheet meta={{ title: 'Kerawanan Transmisi', subtitle: 'Sheet “SELURUH DATA” · ringkasan per tower UPT Bengkulu', fileBase: 'Kerawanan_Transmisi' }}>
       <XKpis items={[

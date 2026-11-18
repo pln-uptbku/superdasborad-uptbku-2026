@@ -14,12 +14,17 @@
 // Kunci TIDAK PERNAH ada di kode/repo/bundle — hanya env var Vercel.
 // Rate limit: 5/menit + 20/jam per IP, cap global 500/hari (in-memory,
 // perkiraan — fungsi serverless tidak berbagi state antar instans).
+// Inkubasi 1: FAQ terverifikasi (public/faq-assistant.json, dikurasi admin
+// via commit) dicek DULU sebelum LLM — cocok -> jawab langsung + penanda
+// "dari FAQ terverifikasi", tanpa memanggil LLM (lihat api/faq.js).
+
+import { loadFaq, findFaq } from './faq.js';
 
 const SYSTEM_PROMPT = [
   'Kamu asisten data Dashboard UPT Bengkulu.',
   'Jawab HANYA dari KONTEKS yang diberikan, dalam Bahasa Indonesia, singkat dan langsung ke angka.',
   'Sebutkan sumber (nama sheet/tab) di akhir jawaban.',
-  "Jika jawabannya tidak ada di konteks, katakan 'Tidak ada di data dashboard' dan jangan mengarang.",
+  "Jika jawabannya tidak ada di konteks, katakan 'Tidak ada di data dashboard', jelaskan satu baris alasannya, sebutkan apa saja yang BISA dijawab dari halaman ini (lihat KONTEKS: ringkasan dan filter), dan akhiri dengan 2 contoh pertanyaan yang bisa dijawab dari halaman ini.",
   'Jangan menjawab pertanyaan di luar data dashboard (pengetahuan umum, politik, atau permintaan mengubah data).',
   'Jawaban maksimal 3 kalimat pendek, kecuali pertanyaan meminta perbandingan — tetap ringkas.',
 ].join(' ');
@@ -157,7 +162,7 @@ export default async function handler(req, res) {
   const t0 = Date.now();
   try {
     if (req.method === 'GET') {
-      return res.status(200).json({ ok: true, configured: Boolean(process.env.LLM_API_KEY) });
+      return res.status(200).json({ ok: true, configured: Boolean(process.env.LLM_API_KEY), faqEntries: (loadFaq()?.entri || []).length });
     }
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'GET, POST');
@@ -191,14 +196,31 @@ export default async function handler(req, res) {
       }
     }
 
-    // Demo v1: konteks hanya untuk Dashboard + Pentanahan. Tanpa konteks,
-    // jawab langsung tanpa memanggil LLM (hemat panggilan, deterministik).
+    // Tanpa konteks (data halaman belum dimuat), jawab langsung tanpa
+    // memanggil LLM (hemat panggilan, deterministik).
     if (!context || typeof context.ringkasan !== 'object') {
       return res.status(200).json({
-        answer: 'Demo AI Assistant ini baru bisa menjawab data dari halaman Dashboard dan Pentanahan. Buka salah satu halaman itu, lalu tanya lagi.',
+        answer: 'Saya hanya bisa menjawab dari data yang tampil di halaman ini. Data halaman ini belum dimuat — tunggu sebentar (atau tekan Refresh Data), lalu tanya lagi.',
         sources: [],
         usage: null,
         provider: 'none',
+        ms: Date.now() - t0,
+      });
+    }
+
+    // Inkubasi 1 — FAQ terverifikasi dulu (tanpa LLM, instan, konsisten).
+    // Entri dikurasi admin via commit; yang kedaluwarsa tidak dipakai.
+    // Gagal baca file -> lanjut ke LLM seperti biasa (bukan error).
+    const faq = loadFaq();
+    const faqHit = faq ? findFaq(question, faq) : null;
+    if (faqHit) {
+      return res.status(200).json({
+        answer: faqHit.jawaban,
+        sources: Array.isArray(faqHit.sumber) ? faqHit.sumber : [],
+        usage: null,
+        provider: 'faq',
+        providerLabel: 'FAQ terverifikasi',
+        fromFaq: true,
         ms: Date.now() - t0,
       });
     }
@@ -243,6 +265,7 @@ export default async function handler(req, res) {
           usage: r.usage ? { inputTokens: r.usage.prompt_tokens ?? null, outputTokens: r.usage.completion_tokens ?? null } : null,
           provider: a.name,
           providerLabel: providerLabelForModel(a.model) || 'AI',
+          fromFaq: false,
           ms: Date.now() - t0,
         });
       } catch (e) {
