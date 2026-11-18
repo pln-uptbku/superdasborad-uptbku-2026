@@ -111,6 +111,10 @@ export interface ChatMsg {
   /** true bila jawaban berasal dari FAQ terverifikasi (tanpa LLM). */
   fromFaq?: boolean;
   error?: boolean;
+  /** Pertanyaan pengguna yang dijawab balon ini (untuk vote + share). */
+  question?: string;
+  /** Vote perangkat ini untuk jawaban ini (optimistis, sesi berjalan). */
+  vote?: 'up' | 'down';
 }
 
 export interface AskResult {
@@ -173,6 +177,55 @@ export async function askAssistant(question: string, history: ChatMsg[]): Promis
     providerLabel: typeof data.providerLabel === 'string' ? data.providerLabel : undefined,
     fromFaq: data.fromFaq === true,
   };
+}
+
+/**
+ * Vote up/down untuk satu jawaban — Inkubasi 2. Dikirim lewat POST
+ * /api/assistant yang sama (action:'vote', BUKAN endpoint baru); vote
+ * dicatat server-side sebagai baris log (kolom vote). Mengembalikan false
+ * bila gagal (UI sudah optimistis — kegagalan vote tidak mengganggu chat).
+ * Vote TIDAK makan kuota tanya (server membatasinya terpisah: 10/menit/IP).
+ */
+export interface VoteMeta {
+  question: string;
+  vote: 'up' | 'down';
+  page?: string;
+  answered?: boolean;
+  fromFaq?: boolean;
+  provider?: string;
+  answer?: string;
+}
+
+export async function sendVote(meta: VoteMeta): Promise<boolean> {
+  try {
+    const res = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'vote', ...meta }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "Pertanyaan populer" bersama — Inkubasi 2. Dibaca dari GET /api/assistant
+ * (pola tab FAQ Sheet yang sudah ditinjau admin, bila Sheet terkonfigurasi).
+ * [] bila tidak ada -> widget memakai fallback Inkubasi 1 (pola FAQ statis
+ * + frekuensi perangkat lokal).
+ */
+export async function fetchServerPopular(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/assistant', { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.popular)
+      ? (data.popular as unknown[]).filter((s): s is string => typeof s === 'string').slice(0, 3)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

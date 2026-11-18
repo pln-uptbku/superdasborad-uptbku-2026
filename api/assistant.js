@@ -17,8 +17,24 @@
 // Inkubasi 1: FAQ terverifikasi (public/faq-assistant.json, dikurasi admin
 // via commit) dicek DULU sebelum LLM — cocok -> jawab langsung + penanda
 // "dari FAQ terverifikasi", tanpa memanggil LLM (lihat api/faq.js).
+// Inkubasi 2: setiap jawaban (termasuk FAQ + "tidak ada di data") dicatat
+// 1 baris ke Sheet privat (api/log-sheet.js); vote up/down masuk sebagai
+// baris log dengan kolom vote terisi. FAQ TETAP file statis via commit —
+// fungsi TIDAK membaca FAQ dari Sheet (tab FAQ di Sheet hanya ruang kurasi
+// admin; pola populer dibaca dari tab itu untuk "Pertanyaan populer").
+
+const LOG_TIMEOUT_MS = 1500; // tulis log maks. 1,5 dtk (lihat log-sheet.js)
+const VOTE_RATE_MIN = 10; // vote per IP per menit (terpisah dari kuota tanya)
 
 import { loadFaq, findFaq } from './faq.js';
+import { loadSheetConfig, logAnswer, readPopular } from './log-sheet.js';
+
+// Inkubasi 2: log bersama (Sheet privat "LOG Asisten UPT", tab LOG) + vote
+// via POST yang sama (action:'vote', BUKAN endpoint baru). Log ditulis
+// server-side SETELAH jawaban ada, dengan batas 1,5 dtk, dan gagal tulis
+// TIDAK PERNAH menggagalkan/menunda jawaban (lihat api/log-sheet.js —
+// tanpa env var GOOGLE_SERVICE_ACCOUNT_JSON + LOG_SHEET_ID, log dilewati
+// diam-diam dan jawaban jalan normal).
 
 const SYSTEM_PROMPT = [
   'Kamu asisten data Dashboard UPT Bengkulu.',
@@ -103,6 +119,71 @@ function rateLimited(ip) {
   return false;
 }
 
+const voteHits = new Map(); // ip -> number[] (epoch ms) — vote TIDAK makan kuota tanya
+
+function voteLimited(ip) {
+  const now = Date.now();
+  const arr = (voteHits.get(ip) || []).filter((t) => now - t < 60_000);
+  if (arr.length >= VOTE_RATE_MIN) return true;
+  arr.push(now);
+  voteHits.set(ip, arr);
+  if (voteHits.size > 5000) {
+    for (const [k, v] of voteHits) if (!v.some((t) => now - t < 60_000)) voteHits.delete(k);
+  }
+  return false;
+}
+
+/** Waktu sekarang dalam WIB, format "2026-11-18 21:30:00" (kolom `waktu` log). */
+function wibNow() {
+  return new Date(Date.now() + 7 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/** Filter aktif konteks -> "tahun=2026, ultg=LAHAT" (kolom `filter` log). */
+function filterText(context) {
+  if (!context || typeof context !== 'object') return '';
+  const parts = [];
+  if (context.tahun !== undefined && context.tahun !== null) parts.push(`tahun=${context.tahun}`);
+  const f = context.filter;
+  if (f && typeof f === 'object') {
+    for (const [k, v] of Object.entries(f)) parts.push(`${k}=${v}`);
+  }
+  return parts.join(', ');
+}
+
+/**
+ * Vote up/down untuk satu jawaban — aksi di POST /api/assistant yang sama
+ * (BUKAN endpoint baru). Vote dicatat sebagai baris log tambahan dengan
+ * kolom `vote` terisi; agregasi (satu suara per pertanyaan) dilakukan saat
+ * review admin. Tanpa Sheet -> jawab {ok:true, logged:false}; UI sudah
+ * optimistis, jadi vote tetap terlihat tercatat di perangkat.
+ */
+async function handleVote(req, res, body, ip) {
+  if (voteLimited(ip)) {
+    return res.status(429).json({ error: 'Terlalu banyak vote — coba lagi sebentar lagi.' });
+  }
+  const { question, vote, page, answered, fromFaq, provider, answer } = body;
+  if (vote !== 'up' && vote !== 'down') return res.status(400).json({ error: 'Vote tidak valid' });
+  if (typeof question !== 'string' || !question.trim() || question.length > MAX_QUESTION) {
+    return res.status(400).json({ error: 'Pertanyaan vote tidak valid' });
+  }
+  if (page !== undefined && typeof page !== 'string') return res.status(400).json({ error: 'Halaman tidak valid' });
+  const sheet = loadSheetConfig();
+  const logged = await logAnswer(sheet, {
+    waktu: wibNow(),
+    halaman: typeof page === 'string' ? page : '',
+    filter: '',
+    pertanyaan: question.trim(),
+    terjawab: answered !== false,
+    jawabanRingkas: typeof answer === 'string' ? answer.slice(0, 300) : '',
+    sumber: [],
+    provider: typeof provider === 'string' ? provider : '',
+    dariFaq: fromFaq === true,
+    latensiDtk: '',
+    vote,
+  }, LOG_TIMEOUT_MS);
+  return res.status(200).json({ ok: true, logged });
+}
+
 async function readBody(req) {
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === 'string') {
@@ -162,20 +243,40 @@ export default async function handler(req, res) {
   const t0 = Date.now();
   try {
     if (req.method === 'GET') {
-      return res.status(200).json({ ok: true, configured: Boolean(process.env.LLM_API_KEY), faqEntries: (loadFaq()?.entri || []).length });
+      const sheet = loadSheetConfig();
+      // Pola populer bersama (tab FAQ Sheet, sudah ditinjau admin) — dibatasi
+      // 3 dtk supaya health check tidak pernah tertahan Sheet yang lambat;
+      // gagal / belum ada Sheet -> field popular dihilangkan, widget memakai
+      // fallback Inkubasi 1 (pola FAQ statis + frekuensi perangkat lokal).
+      let popular = [];
+      if (sheet) {
+        popular = await Promise.race([
+          readPopular(sheet),
+          new Promise((r) => setTimeout(() => r([]), 3000)),
+        ]);
+      }
+      return res.status(200).json({
+        ok: true,
+        configured: Boolean(process.env.LLM_API_KEY),
+        faqEntries: (loadFaq()?.entri || []).length,
+        logConfigured: Boolean(sheet),
+        ...(popular.length > 0 ? { popular } : {}),
+      });
     }
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'GET, POST');
       return res.status(405).json({ error: 'Metode tidak didukung' });
     }
     const ip = clientIp(req);
+    const body = await readBody(req);
+    if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Body JSON tidak valid' });
+    // Vote TIDAK makan kuota tanya: ditangani sebelum rate limit pertanyaan.
+    if (body.action === 'vote') return handleVote(req, res, body, ip);
     if (rateLimited(ip)) {
       res.setHeader('Retry-After', '60');
       return res.status(429).json({ error: 'Terlalu banyak pertanyaan — coba lagi sebentar lagi.' });
     }
 
-    const body = await readBody(req);
-    if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Body JSON tidak valid' });
     const { page, question, context, history } = body;
     if (typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ error: 'Pertanyaan kosong' });
@@ -196,11 +297,32 @@ export default async function handler(req, res) {
       }
     }
 
+    // Inkubasi 2 — konfigurasi log dibaca sekali per request (null bila
+    // Sheet belum disiapkan -> log dilewati diam-diam, jawaban tetap jalan).
+    const sheet = loadSheetConfig();
+    const logBase = {
+      waktu: wibNow(),
+      halaman: typeof page === 'string' ? page : '',
+      filter: filterText(context),
+      pertanyaan: question.trim(),
+    };
+
     // Tanpa konteks (data halaman belum dimuat), jawab langsung tanpa
     // memanggil LLM (hemat panggilan, deterministik).
     if (!context || typeof context.ringkasan !== 'object') {
+      const noCtxAnswer = 'Saya hanya bisa menjawab dari data yang tampil di halaman ini. Data halaman ini belum dimuat — tunggu sebentar (atau tekan Refresh Data), lalu tanya lagi.';
+      await logAnswer(sheet, {
+        ...logBase,
+        terjawab: false,
+        jawabanRingkas: noCtxAnswer,
+        sumber: [],
+        provider: 'none',
+        dariFaq: false,
+        latensiDtk: ((Date.now() - t0) / 1000).toFixed(1),
+        vote: '',
+      }, LOG_TIMEOUT_MS);
       return res.status(200).json({
-        answer: 'Saya hanya bisa menjawab dari data yang tampil di halaman ini. Data halaman ini belum dimuat — tunggu sebentar (atau tekan Refresh Data), lalu tanya lagi.',
+        answer: noCtxAnswer,
         sources: [],
         usage: null,
         provider: 'none',
@@ -214,9 +336,20 @@ export default async function handler(req, res) {
     const faq = loadFaq();
     const faqHit = faq ? findFaq(question, faq) : null;
     if (faqHit) {
+      const faqSources = Array.isArray(faqHit.sumber) ? faqHit.sumber : [];
+      await logAnswer(sheet, {
+        ...logBase,
+        terjawab: true,
+        jawabanRingkas: faqHit.jawaban,
+        sumber: faqSources,
+        provider: 'faq',
+        dariFaq: true,
+        latensiDtk: ((Date.now() - t0) / 1000).toFixed(1),
+        vote: '',
+      }, LOG_TIMEOUT_MS);
       return res.status(200).json({
         answer: faqHit.jawaban,
-        sources: Array.isArray(faqHit.sumber) ? faqHit.sumber : [],
+        sources: faqSources,
         usage: null,
         provider: 'faq',
         providerLabel: 'FAQ terverifikasi',
@@ -259,8 +392,19 @@ export default async function handler(req, res) {
     for (const a of attempts) {
       try {
         const r = await callLlm({ baseUrl: a.baseUrl, apiKey: a.apiKey, model: a.model, messages, timeoutMs: a.timeoutMs });
+        const answer = cleanAnswer(r.content);
+        await logAnswer(sheet, {
+          ...logBase,
+          terjawab: !answer.includes('Tidak ada di data dashboard'),
+          jawabanRingkas: answer,
+          sumber: sources,
+          provider: a.name,
+          dariFaq: false,
+          latensiDtk: (r.ms / 1000).toFixed(1),
+          vote: '',
+        }, LOG_TIMEOUT_MS);
         return res.status(200).json({
-          answer: cleanAnswer(r.content),
+          answer,
           sources,
           usage: r.usage ? { inputTokens: r.usage.prompt_tokens ?? null, outputTokens: r.usage.completion_tokens ?? null } : null,
           provider: a.name,

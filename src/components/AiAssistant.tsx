@@ -10,8 +10,10 @@
 // memori perangkat (localStorage) + FAQ terverifikasi (faq-assistant.json).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { HelpCircle, Send, X } from 'lucide-react';
-import { askAssistant, ChatMsg, dynamicSuggestions, getAssistantContext, routeToPage, subscribeAssistantContext } from '../lib/assistant';
+import { FileText, HelpCircle, Image as ImageIcon, Send, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { askAssistant, ChatMsg, dynamicSuggestions, fetchServerPopular, getAssistantContext, PAGE_CAPABILITIES, routeToPage, sendVote, subscribeAssistantContext, todayId } from '../lib/assistant';
+import AssistantShareSheet from '../lib/assistantShare';
+import type { ShareEntry } from '../lib/assistantShare';
 import { clearMemory, loadMemory, popularQuestions, recordQA } from '../lib/assistant-memory';
 import type { MemoryEntry } from '../lib/assistant-memory';
 import Mascot from './Mascot';
@@ -82,13 +84,19 @@ export default function AiAssistant() {
   useEffect(() => {
     if (!open || faqLoaded) return;
     setFaqLoaded(true);
-    fetch('/faq-assistant.json', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        const entri = Array.isArray(d?.entri) ? d.entri : [];
-        setFaqPola(entri.slice(0, 3).map((e: any) => String(e?.pola?.[0] || '')).filter(Boolean));
-      })
-      .catch(() => { /* tanpa FAQ: populer dari riwayat perangkat saja */ });
+    // Inkubasi 2 — "Pertanyaan populer" bersama (pola tab FAQ Sheet yang
+    // sudah ditinjau admin) didahulukan bila server menyediakannya; bila
+    // tidak, fallback Inkubasi 1 (pola FAQ statis + riwayat perangkat).
+    Promise.all([
+      fetchServerPopular(),
+      fetch('/faq-assistant.json', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([pop, d]) => {
+      if (pop.length > 0) { setFaqPola(pop); return; }
+      const entri = Array.isArray(d?.entri) ? d.entri : [];
+      setFaqPola(entri.slice(0, 3).map((e: any) => String(e?.pola?.[0] || '')).filter(Boolean));
+    });
   }, [open, faqLoaded]);
   // Saran dinamis (Inkubasi 1, §5.2) — dibangkitkan dari konteks halaman
   // yang sedang dimuat; ctxVersion memaksa render ulang saat registry berubah.
@@ -112,7 +120,7 @@ export default function AiAssistant() {
     setLoading(true);
     try {
       const r = await askAssistant(q, messages);
-      setMessages((m) => [...m, { role: 'assistant', content: r.answer, sources: r.sources, provider: r.provider, providerLabel: r.providerLabel, fromFaq: r.fromFaq }]);
+      setMessages((m) => [...m, { role: 'assistant', content: r.answer, sources: r.sources, provider: r.provider, providerLabel: r.providerLabel, fromFaq: r.fromFaq, question: q }]);
       // Inkubasi 1 — catat di memori perangkat (jawaban error tidak dicatat).
       setMemory(recordQA({ q, a: r.answer, page, answered: !r.answer.includes('Tidak ada di data dashboard'), sources: r.sources, providerLabel: r.providerLabel, fromFaq: r.fromFaq }));
     } catch (e) {
@@ -126,6 +134,51 @@ export default function AiAssistant() {
   function askFromGuide(q: string) {
     setShowGuide(false);
     send(q);
+  }
+
+  // Fase 3 — lembar share untuk 1 jawaban (PDF/IMG).
+  const [share, setShare] = useState<ShareEntry | null>(null);
+
+  function filterText(): string {
+    const c = getAssistantContext(page);
+    if (!c) return 'Semua';
+    const parts: string[] = [];
+    if (c.tahun) parts.push(`Tahun ${c.tahun}`);
+    for (const [k, v] of Object.entries(c.filter ?? {})) parts.push(`${k.toUpperCase()} ${v}`);
+    return parts.length ? parts.join(' · ') : 'Semua';
+  }
+
+  function openShare(m: ChatMsg) {
+    if (!m.question) return;
+    setShare({
+      question: m.question,
+      answer: m.content,
+      sources: m.sources ?? [],
+      pageLabel: PAGE_CAPABILITIES.find((c) => c.page === page)?.label ?? page,
+      filterText: filterText(),
+      diakses: todayId(),
+      fromFaq: m.fromFaq ?? false,
+      providerLabel: m.providerLabel,
+      ctx: getAssistantContext(page),
+    });
+  }
+
+  /** Vote up/down untuk satu jawaban — Inkubasi 2 (optimistis; gagal kirim diam). */
+  async function vote(i: number, v: 'up' | 'down') {
+    const m = messages[i];
+    if (!m || m.role !== 'assistant' || m.error || !m.question) return;
+    const next = m.vote === v ? undefined : v;
+    setMessages((ms) => ms.map((x, j) => (j === i ? { ...x, vote: next } : x)));
+    if (!next) return;
+    await sendVote({
+      question: m.question,
+      vote: next,
+      page,
+      answered: !m.content.includes('Tidak ada di data dashboard'),
+      fromFaq: m.fromFaq,
+      provider: m.provider,
+      answer: m.content.slice(0, 300),
+    });
   }
 
   return (
@@ -234,6 +287,31 @@ export default function AiAssistant() {
                         : <ProviderBadge provider={m.provider} providerLabel={m.providerLabel} />}
                     </div>
                   )}
+                  {m.role === 'assistant' && !m.error && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <button type="button" onClick={() => vote(i, 'up')} aria-label="Suka jawaban ini" title="Suka — membantu bot belajar"
+                        className="inline-flex items-center justify-center rounded-full w-7 h-7"
+                        style={m.vote === 'up' ? { background: 'rgba(46,125,50,0.18)', color: '#2E7D32' } : { background: 'var(--bg)', border: '1px solid var(--card-border)', color: 'var(--text)' }}>
+                        <ThumbsUp size={13} />
+                      </button>
+                      <button type="button" onClick={() => vote(i, 'down')} aria-label="Tidak suka jawaban ini" title="Tidak suka — jawaban ini masuk antrean koreksi"
+                        className="inline-flex items-center justify-center rounded-full w-7 h-7"
+                        style={m.vote === 'down' ? { background: 'rgba(220,38,38,0.14)', color: '#DC2626' } : { background: 'var(--bg)', border: '1px solid var(--card-border)', color: 'var(--text)' }}>
+                        <ThumbsDown size={13} />
+                      </button>
+                      <span className="mx-0.5 text-[10px] t-muted">·</span>
+                      <button type="button" onClick={() => openShare(m)} aria-label="Bagikan jawaban sebagai PDF" title="Bagikan jawaban ini sebagai PDF (1 halaman A4)"
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        style={{ background: 'var(--bg)', border: '1px solid var(--card-border)', color: 'var(--accent)' }}>
+                        <FileText size={13} /> PDF
+                      </button>
+                      <button type="button" onClick={() => openShare(m)} aria-label="Bagikan jawaban sebagai gambar" title="Bagikan jawaban ini sebagai gambar (PNG)"
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        style={{ background: 'var(--bg)', border: '1px solid var(--card-border)', color: 'var(--accent)' }}>
+                        <ImageIcon size={13} /> IMG
+                      </button>
+                    </div>
+                  )}
                   {m.role === 'assistant' && !m.error && m.content.includes('Tidak ada di data dashboard') && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {dynamicSuggestions(ctx, page).map((s) => (
@@ -285,9 +363,11 @@ export default function AiAssistant() {
           </div>
           <div className="shrink-0 px-3 pb-2 text-[10px] t-muted text-center">
             Demo — jawaban hanya dari data halaman ini &amp; bisa salah; cek sumbernya.
+            <br />Jangan mengetik data pribadi — bot ini hanya menjawab data dashboard.
           </div>
         </div>
       )}
+      {share && <AssistantShareSheet entry={share} onClose={() => setShare(null)} />}
     </>
   );
 }
