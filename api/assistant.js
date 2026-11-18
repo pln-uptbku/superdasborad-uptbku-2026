@@ -94,6 +94,7 @@ const DEFAULTS = {
 function providerLabelForModel(model) {
   const m = String(model || '').toLowerCase();
   if (m.includes('deepseek')) return 'DeepSeek';
+  if (m.includes('glm')) return 'GLM';
   if (m.includes('qwen')) return 'Qwen';
   if (m.includes('llama')) return 'Llama';
   if (m.includes('muse')) return 'Muse';
