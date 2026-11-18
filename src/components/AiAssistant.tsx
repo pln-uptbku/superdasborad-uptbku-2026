@@ -54,6 +54,13 @@ export default function AiAssistant() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open ]);
 
+  // Pemandu SELALU mulai TERTUTUP setiap kali panel dibuka (state showGuide
+  // bertahan karena komponen terpasang sekali di App — tanpa reset ini
+  // pemandu yang pernah dibuka tetap terbuka saat panel dibuka ulang).
+  // Pindah halaman saat panel terbuka juga menutup pemandu.
+  useEffect(() => { if (open) setShowGuide(false); }, [open]);
+  useEffect(() => { setShowGuide(false); }, [pathname]);
+
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages, loading]);
