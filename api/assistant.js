@@ -56,8 +56,24 @@ const RATE_HOUR = 20; // per IP per jam
 const DAILY_CAP = 500; // global per hari
 
 // Anggaran waktu (maxDuration fungsi = 60 dtk, lihat vercel.json).
+// Tanpa cadangan, primer dicoba DUA kali dalam satu request (total 52 dtk):
+// percobaan 1 = 38 dtk, percobaan 2 = 14 dtk. Alasan pembagian ini (bukan
+// 25+25): latensi primer bimodal — biasanya ~5 dtk, kadang menggantung
+// melewati 55 dtk (terbukti: 4x "Timeout 55000 ms" di runtime errors
+// 18 Nov 2026, terakhir 22:01 WIB) — dan jawaban lambat tapi berhasil pernah
+// terukur mendekati batas 55 dtk, jadi percobaan pertama harus tetap panjang
+// agar tidak membunuh jawaban lambat yang sebenarnya akan berhasil.
+// Percobaan kedua 14 dtk cukup untuk fase cepat primer (~5 dtk) + margin,
+// dan memperbaiki juga galat cepat (HTTP 520: 2x, 503 "no provider is
+// available": 1x, di hari yang sama) yang langsung di-retry. Semua retry
+// yang tercatat sejauh ini (3x, percobaan pertama gagal ~60 dtk) berhasil
+// pada percobaan berikutnya yang dikirim segera sesudahnya.
+// Total 52 dtk + tulis log (maks. 1,5 dtk, hanya bila Sheet terkonfigurasi)
+// + overhead tetap di bawah maxDuration 60 dtk; klien menunggu maks. 59 dtk
+// (lihat ASK_TIMEOUT_MS di src/lib/assistant.ts).
 const PRIMARY_TIMEOUT_WITH_BACKUP = 30000;
-const PRIMARY_TIMEOUT_ALONE = 55000;
+const PRIMARY_ALONE_FIRST_MS = 38000;
+const PRIMARY_ALONE_RETRY_MS = 14000;
 const BACKUP_TIMEOUT = 25000;
 
 const DEFAULTS = {
@@ -384,9 +400,12 @@ export default async function handler(req, res) {
     ];
     const sources = Array.isArray(context.sumber) ? context.sumber : [];
 
-    const primaryTimeout = backup ? PRIMARY_TIMEOUT_WITH_BACKUP : PRIMARY_TIMEOUT_ALONE;
-    const attempts = [{ ...primary, timeoutMs: primaryTimeout }];
-    if (backup) attempts.push({ ...backup, timeoutMs: BACKUP_TIMEOUT });
+    // Tanpa cadangan: primer DUA kali (38 dtk + 14 dtk) dalam satu request,
+    // supaya pengunjung tidak perlu klik retry manual. Dengan cadangan:
+    // failover yang dirancang tetap berlaku (primer 30 dtk -> cadangan 25 dtk).
+    const attempts = backup
+      ? [{ ...primary, timeoutMs: PRIMARY_TIMEOUT_WITH_BACKUP }, { ...backup, timeoutMs: BACKUP_TIMEOUT }]
+      : [{ ...primary, timeoutMs: PRIMARY_ALONE_FIRST_MS }, { ...primary, timeoutMs: PRIMARY_ALONE_RETRY_MS }];
 
     let lastError = null;
     for (const a of attempts) {
@@ -400,7 +419,8 @@ export default async function handler(req, res) {
           sumber: sources,
           provider: a.name,
           dariFaq: false,
-          latensiDtk: (r.ms / 1000).toFixed(1),
+          // Latensi TOTAL (semua percobaan), bukan percobaan yang berhasil saja.
+          latensiDtk: ((Date.now() - t0) / 1000).toFixed(1),
           vote: '',
         }, LOG_TIMEOUT_MS);
         return res.status(200).json({
@@ -417,6 +437,20 @@ export default async function handler(req, res) {
         console.error(`[assistant] ${a.name} gagal: ${String(e && e.message ? e.message : e).slice(0, 200)}`);
       }
     }
+    // Semua percobaan gagal: catat SATU baris log hasil akhir (terjawab =
+    // tidak). Pertanyaan tak terjawab adalah bahan belajar utama Inkubasi 2,
+    // jadi kegagalan pun dicatat, bukan didiamkan. Satu baris per pertanyaan,
+    // bukan per percobaan — percobaan yang gagal tidak dicatat sendiri-sendiri.
+    await logAnswer(sheet, {
+      ...logBase,
+      terjawab: false,
+      jawabanRingkas: 'AI sedang tidak bisa menjawab — coba lagi sebentar lagi.',
+      sumber: sources,
+      provider: primary.name,
+      dariFaq: false,
+      latensiDtk: ((Date.now() - t0) / 1000).toFixed(1),
+      vote: '',
+    }, LOG_TIMEOUT_MS);
     return res.status(502).json({
       error: 'AI sedang tidak bisa menjawab — coba lagi sebentar lagi.',
       detail: lastError ? String(lastError.message || lastError).slice(0, 200) : undefined,

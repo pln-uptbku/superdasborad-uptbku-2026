@@ -142,24 +142,49 @@ function errorMessage(data: any, status: number): string {
   return `Gagal (${status})`;
 }
 
+/**
+ * Batas tunggu klien untuk satu pertanyaan (59 dtk). Harus LEBIH BESAR dari
+ * anggaran server terburuk (~52 dtk LLM + maks. 1,5 dtk tulis log + overhead
+ * jaringan/cold start) supaya jawaban yang berhasil di percobaan kedua
+ * server tidak dibatalkan klien, tapi tetap TERBATAS supaya fungsi yang
+ * menggantung tidak memutar status "memikirkan jawaban" selamanya.
+ * Sebelumnya: tanpa batas (fetch menunggu tanpa abort) — kegagalan ~60 dtk
+ * yang terlihat sejauh ini adalah respons galat server, bukan abort klien.
+ */
+const ASK_TIMEOUT_MS = 59000;
+const ASK_TIMEOUT_MESSAGE = 'AI sedang tidak bisa menjawab — coba lagi sebentar lagi.';
+
 /** Kirim pertanyaan + konteks halaman aktif + riwayat (maks 6 pesan). */
 export async function askAssistant(question: string, history: ChatMsg[]): Promise<AskResult> {
   const pathname = window.location.pathname;
   const page = routeToPage(pathname);
   const context = page ? getAssistantContext(page) : null;
-  const res = await fetch('/api/assistant', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      page: page ?? pathname,
-      question,
-      context,
-      history: history
-        .filter((m) => !m.error)
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content })),
-    }),
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ASK_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        page: page ?? pathname,
+        question,
+        context,
+        history: history
+          .filter((m) => !m.error)
+          .slice(-6)
+          .map((m) => ({ role: m.role, content: m.content })),
+      }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    // Abort klien (melewati 59 dtk) -> pesan galat yang sama dengan galat
+    // server, bukan "AbortError" mentah. Galat jaringan lain diteruskan.
+    if (e && (e as any).name === 'AbortError') throw new Error(ASK_TIMEOUT_MESSAGE);
+    throw e;
+  }
+  clearTimeout(timer);
   let data: any = null;
   try { data = await res.json(); } catch { /* abaikan */ }
   if (!res.ok) {
