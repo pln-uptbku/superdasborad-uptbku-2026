@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TreePine } from 'lucide-react';
 import { TegakanData, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { TegakanRow, TEG_STATUSES, TrendSeries } from '../lib/parsers';
 import { fmtDate, fmtNum } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, PageHeader, Search, Select, SortableTable, StatCard, STATUS_COLORS, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
@@ -69,6 +70,28 @@ function Body({ data }: { data: TegakanData }) {
     }
     return [...mm.entries()].sort((a, b) => b[1].KRITIS - a[1].KRITIS || b[1].total - a[1].total);
   }, [rows]);
+
+  // Konteks AI Assistant — dari baris terfilter yang SAMA dengan tabel/KPI.
+  const tegakanCtx = useMemo(() => {
+    const perStatus: Record<string, number> = {};
+    for (const s of TEG_STATUSES) perStatus[s] = sumJml(rows, s);
+    return {
+      page: 'tegakan' as const,
+      filter: { ultg: f.ultg, status: f.status, tipe: f.tipe, posisi: f.posisi, penghantar: f.pht, pencarian: f.q || '—' },
+      ringkasan: {
+        totalTegakan: total,
+        record: rows.length,
+        perStatus,
+        teratasKritis: perPht.slice(0, 5).map(([pht, v]) => ({ penghantar: pht, ultg: v.ultg, kritis: v.KRITIS, total: v.total })),
+      },
+      sumber: ['TARIKAN NEW SRINTAMI'],
+      diakses: todayId(),
+    };
+  }, [rows, total, perPht, f]);
+  useEffect(() => {
+    setAssistantContext('tegakan', tegakanCtx);
+    return () => setAssistantContext('tegakan', null);
+  }, [tegakanCtx]);
   return (
     <div className="space-y-5">
       <PageHeader title={<><Term term="Tegakan">Tegakan</Term> <Term term="NS">(NS)</Term></>} subtitle={<>Sheet “TARIKAN NEW SRINTAMI” · <b className="t-accent">{fmtNum(sumJml(data.rows))}</b> tegakan · {fmtNum(data.rows.length)} record{data.headerTotal != null && <> · total sheet (X1): {fmtNum(data.headerTotal)}</>}</>}

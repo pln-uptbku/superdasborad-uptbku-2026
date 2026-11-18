@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, ImageOff, X } from 'lucide-react';
 import { usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import type { GaleriFolder, GaleriPhoto } from '../lib/data';
 import { Card, LoadingScreen, PageHeader, Select } from '../components/ui';
 import { ExportSheet, XKpis, XSection, XTable } from '../lib/export';
@@ -90,6 +91,29 @@ export default function Galeri() {
     const m = new Map<string, number>(); shown.forEach((ph) => m.set(cap(ph.bidang), (m.get(cap(ph.bidang)) || 0) + 1));
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [shown]);
+
+  // Konteks AI Assistant — dari foto bulan + bidang yang sedang tampil.
+  // Galeri tidak punya angka kinerja: jawab dari judul + bidang foto.
+  const galeriCtx = useMemo(() => {
+    if (!photos || !curMonth) return null;
+    return {
+      page: 'galeri' as const,
+      filter: { bulan: monthLabel(curMonth.name), bidang },
+      ringkasan: {
+        bulan: monthLabel(curMonth.name),
+        totalFoto: shown.length,
+        jumlahBidang: perBidang.length,
+        perBidang: perBidang.map(([b, n]) => ({ bidang: b, jumlah: n })),
+        judulFoto: shown.slice(0, 10).map((p) => title(p.name)),
+      },
+      sumber: ['Google Drive — Flyer Konten Publikasi UPTBKU'],
+      diakses: todayId(),
+    };
+  }, [photos, curMonth, bidang, shown, perBidang]);
+  useEffect(() => {
+    setAssistantContext('galeri', galeriCtx);
+    return () => setAssistantContext('galeri', null);
+  }, [galeriCtx]);
   const sheetEl = photos ? (
     <ExportSheet meta={{ title: 'Galeri Kegiatan UPT Bengkulu', subtitle: `Bulan ${curMonth ? monthLabel(curMonth.name) : '—'} · Bidang ${bidang}`, fileBase: `Galeri_UPT_Bengkulu_${curMonth ? curMonth.name : ''}` }}>
       <XKpis items={[

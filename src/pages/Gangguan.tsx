@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Activity, AlarmClock, Building2, Clock, FolderOpen, Gauge, RefreshCw, Zap } from 'lucide-react';
 import { GangguanData, RekapGangguanData, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { GangguanRow, RekapGangguanRow } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_LONG } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ErrorState, ExportButton, Gate, LIGHT_CHART_THEME, LoadingScreen, Modal, PageHeader, Search, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
@@ -53,6 +54,32 @@ function Body({ data }: { data: GangguanData }) {
   const openFois = rows.filter((r) => r.statusFois === 'OPEN');
   const overdue = rows.filter((r) => r.overdueUpt || r.overdueFois);
   const perYear = uniq(rows.map((r) => r.tahun)).map((y) => ({ tahun: y, CLOSE: rows.filter((r) => r.tahun === y && r.statusUpt === 'CLOSE').length, OPEN: rows.filter((r) => r.tahun === y && r.statusUpt === 'OPEN').length }));
+
+  // Konteks AI Assistant — tab overview/UPT/FOIS (dari baris terfilter yang
+  // SAMA dengan KPI/chart). Tab Summary didaftarkan sendiri oleh SummaryBody.
+  const gangguanCtx = useMemo(() => {
+    if (tab === 'summary') return null;
+    return {
+      page: 'gangguan' as const,
+      filter: { tab, tahun: f.tahun, penyebab: f.penyebab, statusUpt: f.upt, statusFois: f.fois, pencarian: f.q || '—' },
+      ringkasan: {
+        total: rows.length,
+        semuaTahun: all.length,
+        openUpt: openUpt.length,
+        openFois: openFois.length,
+        overdue: overdue.length,
+        perPenyebab: groupSum(rows, (r) => r.penyebab).slice(0, 8).map((d) => ({ penyebab: d.name, jumlah: d.value })),
+        perTahun: perYear,
+      },
+      sumber: ['UPTBKU (gangguan)', 'INPUT GGN PHT (rekap)'],
+      diakses: todayId(),
+    };
+  }, [tab, rows, all, openUpt, openFois, overdue, perYear, f]);
+  useEffect(() => {
+    if (tab === 'summary') return;
+    setAssistantContext('gangguan', gangguanCtx);
+    return () => setAssistantContext('gangguan', null);
+  }, [tab, gangguanCtx]);
   const axis = { tick: { fill: t.axis, fontSize: 11 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
   const listFor = tab === 'upt' ? [...rows].sort((a, b) => (b.statusUpt === 'OPEN' ? 1 : 0) - (a.statusUpt === 'OPEN' ? 1 : 0))
@@ -253,6 +280,31 @@ function SummaryBody({ data }: { data: RekapGangguanData }) {
       return { ...p, tower, towerCount: tw.nums.size + tw.other.size };
     }).sort((a, b) => b.kejadian - a.kejadian || b.ens - a.ens);
   }, [srows]);
+
+  // Konteks AI Assistant — tab Summary (filter + KPI + rekap per penghantar
+  // dari SummaryBody sendiri; Body menonaktifkan konteks utamanya di tab ini).
+  const summaryCtx = useMemo(() => ({
+    page: 'gangguan' as const,
+    filter: { tab: 'summary', tahun: fs.tahun, bulan: fs.bulan, ultg: fs.ultg, tegangan: fs.tegangan, penghantar: fs.penghantar, penyebab: fs.penyebab, status: fs.status, pencarian: fs.q || '—' },
+    ringkasan: {
+      totalKejadian: srows.length,
+      semuaTahun: all.length,
+      trip: trip.length,
+      reclose: reclose.length,
+      totalDurasiJam: +totDurasi.toFixed(2),
+      totalEnsMwh: +totEns.toFixed(1),
+      perPenyebab: groupSum(srows, (r) => r.penyebab).slice(0, 8).map((d) => ({ penyebab: d.name, jumlah: d.value })),
+      perTahun: perYear,
+      rekapPerPenghantar: perPht.slice(0, 10).map((p) => ({ penghantar: p.penghantar, ultg: p.ultg, kejadian: p.kejadian, trip: p.trip, reclose: p.reclose, durasiJam: +p.durasi.toFixed(2), ensMwh: +p.ens.toFixed(1), towerTemuan: towerShort(p.tower, p.towerCount) })),
+    },
+    sumber: ['INPUT GGN PHT (rekap)', 'UPTBKU (gangguan)'],
+    diakses: todayId(),
+  }), [srows, all, trip, reclose, totDurasi, totEns, perYear, perPht, fs]);
+  useEffect(() => {
+    setAssistantContext('gangguan', summaryCtx);
+    return () => setAssistantContext('gangguan', null);
+  }, [summaryCtx]);
+
   const axis = { tick: { fill: t.axis, fontSize: 11 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
   const filterSub = `Tahun ${fs.tahun} · Bulan ${fs.bulan} · ULTG ${fs.ultg} · ${fs.tegangan} kV · Penyebab ${fs.penyebab} · Status ${fs.status}`;

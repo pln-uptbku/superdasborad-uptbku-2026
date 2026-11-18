@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Axe, Scissors, TreePine, AlertOctagon } from 'lucide-react';
 import { PenebanganData, useData, usePageSources, useSource } from '../lib/data';
+import { setAssistantContext, todayId } from '../lib/assistant';
 import { PenebanganRow } from '../lib/parsers';
 import { fmtDate, fmtNum, MONTHS_SHORT } from '../lib/sheets';
 import { Badge, C, Card, ChartCard, Col, ExportButton, Gate, LIGHT_CHART_THEME, PageHeader, Select, SortableTable, StatCard, Tabs, groupSum, uniq, useChartTheme } from '../components/ui';
@@ -65,6 +66,31 @@ function Body({ data }: { data: PenebanganData }) {
   const tindakan = groupSum(rows, (r) => r.tindakan || '-', (r) => r.jumlah);
   const statusDist = groupSum(rows, (r) => r.status, (r) => r.jumlah);
   const tt = { tebang: daily.reduce((a, d) => a + d.TEBANG, 0), pangkas: daily.reduce((a, d) => a + d.PANGKAS, 0) };
+
+  // Konteks AI Assistant — dari baris terfilter yang SAMA dengan KPI/chart.
+  const penebanganCtx = useMemo(() => {
+    const kritis = rows.filter((x) => x.status.includes('KRITIS')).reduce((a, x) => a + x.jumlah, 0);
+    return {
+      page: 'penebangan' as const,
+      filter: { wilayah: view, tahun: year, status },
+      ringkasan: {
+        total,
+        record: rows.length,
+        tebang: tt.tebang,
+        pangkas: tt.pangkas,
+        kritis,
+        perTahun: perYear.map((y) => ({ tahun: y.tahun, pekalongan: y.PEKALONGAN, lahat: y.LAHAT })),
+        teratasSection: perSection.slice(0, 5).map((d) => ({ section: d.name, jumlah: d.value })),
+        distribusiStatus: statusDist.map((d) => ({ status: d.name, jumlah: d.value })),
+      },
+      sumber: ['ULTG PEKALONGAN 2024-2026', 'ULTG LAHAT 2024-2026'],
+      diakses: todayId(),
+    };
+  }, [rows, total, tt, perYear, perSection, statusDist, view, year, status]);
+  useEffect(() => {
+    setAssistantContext('penebangan', penebanganCtx);
+    return () => setAssistantContext('penebangan', null);
+  }, [penebanganCtx]);
   const ylabel = year === 'Semua' ? '2024–2026' : year;
   const axis = { tick: { fill: t.axis, fontSize: 10 } };
   const lg = (v: string) => <span style={{ color: t.legend.color }}>{v}</span>;
